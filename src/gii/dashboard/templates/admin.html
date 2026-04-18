@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Pipeline Admin{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Pipeline Administration</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Temporal Status -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold mb-4">Temporal Status</h2>
+        <div
+            hx-get="/api/pipelines/status"
+            hx-trigger="load, every 30s"
+            hx-swap="innerHTML"
+            id="temporal-status"
+        >
+            <span class="text-gray-400">Checking...</span>
+        </div>
+    </div>
+
+    <!-- Trigger Pipeline -->
+    <div class="bg-white rounded-lg shadow p-6" x-data="{ year: 2025, period: '2025', loading: false, result: '' }">
+        <h2 class="text-lg font-semibold mb-4">Trigger Pipeline</h2>
+        <div class="space-y-3">
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Year</label>
+                <input type="number" x-model="year" class="border rounded px-3 py-2 w-full" min="2000" max="2030">
+            </div>
+            <div>
+                <label class="block text-sm text-gray-600 mb-1">Period</label>
+                <input type="text" x-model="period" class="border rounded px-3 py-2 w-full" placeholder="e.g. 2025 or 2025-Q1">
+            </div>
+            <button
+                @click="loading = true; result = '';
+                    fetch('/api/pipelines/trigger', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({year: parseInt(year), period: period})
+                    }).then(r => r.json()).then(d => { result = d.message || d.status; loading = false; }).catch(e => { result = 'Error: ' + e; loading = false; })"
+                class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 w-full"
+                :disabled="loading"
+            >
+                <span x-show="!loading">Trigger Refresh</span>
+                <span x-show="loading">Running...</span>
+            </button>
+            <div x-show="result" class="text-sm p-3 bg-gray-50 rounded" x-text="result"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% if snapshot %}
+<div class="space-y-2">
+    <div class="flex justify-between text-sm">
+        <span class="text-gray-600">Composite Score</span>
+        <span class="font-bold text-indigo-600">{{ "%.1f"|format(snapshot.composite_score) }}</span>
+    </div>
+    {% if snapshot.trade_normalized is not none %}
+    <div class="flex justify-between text-sm">
+        <span class="text-gray-600">Trade</span>
+        <span class="text-green-600">{{ "%.1f"|format(snapshot.trade_normalized) }}</span>
+    </div>
+    {% endif %}
+    {% if snapshot.travel_normalized is not none %}
+    <div class="flex justify-between text-sm">
+        <span class="text-gray-600">Travel</span>
+        <span class="text-blue-600">{{ "%.1f"|format(snapshot.travel_normalized) }}</span>
+    </div>
+    {% endif %}
+    {% if snapshot.geopolitics_normalized is not none %}
+    <div class="flex justify-between text-sm">
+        <span class="text-gray-600">Geopolitics</span>
+        <span class="text-amber-600">{{ "%.1f"|format(snapshot.geopolitics_normalized) }}</span>
+    </div>
+    {% endif %}
+    <div class="text-xs text-gray-400">Coverage: {{ snapshot.coverage }}</div>
+</div>
+{% else %}
+<div class="text-gray-400 text-sm">No data available for this pair/period.</div>
+{% endif %}

@@ -1,0 +1,49 @@
+[project]
+name = "gii"
+version = "0.1.0"
+description = "Global Interconnectedness Index — composite bilateral scores across trade, travel, and geopolitics"
+readme = "README.md"
+authors = [
+    { name = "Randy Johnston", email = "github@randyjohnston.info" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    # Core
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.9,<3",
+    "httpx>=0.28,<1",
+    "pandas>=2.2,<3",
+    "numpy>=2.2,<3",
+    # API
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
+    "jinja2>=3.1,<4",
+    "python-multipart>=0.0.20",
+    # Temporal
+    "temporalio>=1.9,<2",
+    # BigQuery (GDELT)
+    "google-cloud-bigquery>=3.31,<4",
+    # LangChain
+    "langchain>=0.3,<1",
+    "langchain-core>=0.3,<1",
+    # Database
+    "sqlalchemy[asyncio]>=2.0,<3",
+    "psycopg[binary]>=3.2,<4",
+    "alembic>=1.15,<2",
+    "langchain-nvidia-ai-endpoints>=0.3.19",
+]
+
+[project.scripts]
+gii = "gii:main"
+
+[build-system]
+requires = ["uv_build>=0.11.3,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.25,<1",
+    "pytest-httpx>=0.35,<1",
+    "ruff>=0.11,<1",
+]

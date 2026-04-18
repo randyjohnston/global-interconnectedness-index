@@ -1,0 +1,16 @@
+/* GII Dashboard custom styles */
+
+/* HTMX loading indicator */
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+}
+
+.htmx-request .htmx-indicator {
+    opacity: 1;
+}
+
+/* Score color scale */
+.score-high { color: #16a34a; }
+.score-mid { color: #d97706; }
+.score-low { color: #dc2626; }

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{{ country_a_name }} - {{ country_b_name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold">{{ country_a_name }} <span class="text-gray-400">—</span> {{ country_b_name }}</h1>
+    <p class="text-gray-500 font-mono">{{ country_a }} / {{ country_b }}</p>
+</div>
+
+{% if history %}
+<!-- Latest Score -->
+{% set latest = history[-1] %}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500">Composite Score</div>
+        <div class="text-3xl font-bold text-indigo-600">{{ "%.1f"|format(latest.composite_score) }}</div>
+        <div class="text-xs text-gray-400 mt-1">{{ latest.period }}</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500">Trade</div>
+        <div class="text-2xl font-bold {% if latest.trade_normalized is not none %}text-green-600{% else %}text-gray-300{% endif %}">
+            {{ "%.1f"|format(latest.trade_normalized) if latest.trade_normalized is not none else "N/A" }}
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500">Travel</div>
+        <div class="text-2xl font-bold {% if latest.travel_normalized is not none %}text-blue-600{% else %}text-gray-300{% endif %}">
+            {{ "%.1f"|format(latest.travel_normalized) if latest.travel_normalized is not none else "N/A" }}
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="text-sm text-gray-500">Geopolitics</div>
+        <div class="text-2xl font-bold {% if latest.geopolitics_normalized is not none %}text-amber-600{% else %}text-gray-300{% endif %}">
+            {{ "%.1f"|format(latest.geopolitics_normalized) if latest.geopolitics_normalized is not none else "N/A" }}
+        </div>
+    </div>
+</div>
+
+<!-- Time Series Chart -->
+<div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-lg font-semibold mb-4">Score History</h2>
+    <canvas id="historyChart" height="100"></canvas>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [{% for h in history %}"{{ h.period }}"{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [
+                {
+                    label: 'Composite',
+                    data: [{% for h in history %}{{ h.composite_score }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderColor: '#4F46E5',
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                },
+                {
+                    label: 'Trade',
+                    data: [{% for h in history %}{{ h.trade_normalized if h.trade_normalized is not none else 'null' }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderColor: '#16A34A',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                },
+                {
+                    label: 'Travel',
+                    data: [{% for h in history %}{{ h.travel_normalized if h.travel_normalized is not none else 'null' }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderColor: '#2563EB',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                },
+                {
+                    label: 'Geopolitics',
+                    data: [{% for h in history %}{{ h.geopolitics_normalized if h.geopolitics_normalized is not none else 'null' }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderColor: '#D97706',
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true, max: 100 } },
+            plugins: { legend: { position: 'bottom' } },
+        }
+    });
+});
+</script>
+
+<!-- AI Narrative (loaded async via HTMX) -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">AI Analysis</h2>
+    <div
+        hx-get="/partials/score-card/{{ country_a }}/{{ country_b }}/{{ latest.period }}"
+        hx-trigger="load"
+        hx-swap="innerHTML"
+    >
+        <div class="text-gray-400 animate-pulse">Loading analysis...</div>
+    </div>
+</div>
+
+{% else %}
+<div class="bg-white rounded-lg shadow p-8 text-center text-gray-400">
+    No data available for this country pair yet.
+</div>
+{% endif %}
+{% endblock %}
