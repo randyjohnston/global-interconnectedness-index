@@ -130,5 +130,16 @@ class Repository:
             country_a=country_a, country_b=country_b, period=period, narrative_text=text,
         ))
 
+    def get_narrative(self, country_a: str, country_b: str, period: str) -> NarrativeReportRow | None:
+        from gii.models.country import CountryPair
+        pair = CountryPair.create(country_a, country_b)
+        return self.session.scalar(
+            select(NarrativeReportRow)
+            .where(NarrativeReportRow.country_a == pair.country_a)
+            .where(NarrativeReportRow.country_b == pair.country_b)
+            .where(NarrativeReportRow.period == period)
+            .order_by(NarrativeReportRow.created_at.desc())
+        )
+
     def commit(self) -> None:
         self.session.commit()

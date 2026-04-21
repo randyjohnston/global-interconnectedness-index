@@ -24,6 +24,21 @@
     {% endif %}
     <div class="text-xs text-gray-400">Coverage: {{ snapshot.coverage }}</div>
 </div>
+
+{% if narrative %}
+<div class="mt-4 pt-4 border-t border-gray-100">
+    <div id="narrative-content" class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"></div>
+    <p class="text-xs text-gray-400 mt-2">Generated {{ narrative.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    <script>
+        document.getElementById('narrative-content').innerHTML = marked.parse({{ narrative.narrative_text | tojson }});
+    </script>
+</div>
+{% else %}
+<div class="mt-4 pt-4 border-t border-gray-100">
+    <p class="text-sm text-gray-400 italic">No AI analysis available for this pair yet.</p>
+</div>
+{% endif %}
+
 {% else %}
 <div class="text-gray-400 text-sm">No data available for this pair/period.</div>
 {% endif %}

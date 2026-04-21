@@ -87,7 +87,9 @@ def score_card_partial(request: Request, country_a: str, country_b: str, period:
     from gii.models.country import CountryPair
     pair = CountryPair.create(country_a, country_b)
     snapshot = next((s for s in snapshots if s.country_a == pair.country_a and s.country_b == pair.country_b), None)
+    narrative = repo.get_narrative(country_a, country_b, period)
 
     return templates.TemplateResponse(request, "partials/score_card.html", {
         "snapshot": snapshot,
+        "narrative": narrative,
     })

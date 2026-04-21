@@ -55,12 +55,14 @@ def compute_composite_scores(
 
     # Compute raw values
     pair_list = sorted(all_pairs)
-    trade_raw = [compute_trade_raw(trade_by_pair[p]) if p in trade_by_pair else None for p in pair_list]
+    trade_raw = [float(trade_by_pair[p].total_bilateral) if p in trade_by_pair else None for p in pair_list]
+    trade_for_norm = [compute_trade_raw(trade_by_pair[p]) if p in trade_by_pair else None for p in pair_list]
     flight_raw = [float(flight_by_pair[p].route_count) if p in flight_by_pair else None for p in pair_list]
     geo_raw = [compute_geopolitics_raw(geo_by_pair[p]) if p in geo_by_pair else None for p in pair_list]
 
     # Normalize each pillar (only non-None values)
-    trade_norm = _normalize_sparse(trade_raw)
+    # Trade uses log-transform for normalization but stores actual bilateral value as raw
+    trade_norm = _normalize_sparse(trade_for_norm)
     flight_norm = _normalize_sparse(flight_raw)
     geo_norm = _normalize_sparse(geo_raw)
 
@@ -101,11 +103,18 @@ def compute_composite_scores(
         # Apply coverage confidence discount
         composite *= COVERAGE_CONFIDENCE[len(available)]
 
+        # Carry raw geopolitics components for UI display
+        geo_row = geo_by_pair.get((a, b))
+
         results.append(CompositeScore(
             country_a=a, country_b=b, period=period,
             trade=pillar_scores.get("trade"),
+            trade_log=round(trade_for_norm[i], 4) if trade_for_norm[i] is not None else None,
             travel=pillar_scores.get("travel"),
             geopolitics=pillar_scores.get("geopolitics"),
+            geopolitics_avg_goldstein=round(geo_row.avg_goldstein, 3) if geo_row else None,
+            geopolitics_cooperative_ratio=round(geo_row.cooperative_ratio, 3) if geo_row else None,
+            geopolitics_event_count=geo_row.event_count if geo_row else None,
             composite_score=round(composite, 2),
             coverage=available,
         ))

@@ -33,6 +33,24 @@
         <div class="text-2xl font-bold {% if latest.geopolitics_normalized is not none %}text-amber-600{% else %}text-gray-300{% endif %}">
             {{ "%.1f"|format(latest.geopolitics_normalized) if latest.geopolitics_normalized is not none else "N/A" }}
         </div>
+        {% if latest.geopolitics_avg_goldstein is not none %}
+        <div class="mt-2 space-y-1">
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Goldstein</span>
+                <span class="text-gray-600">{{ "%.2f"|format(latest.geopolitics_avg_goldstein) }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Cooperation</span>
+                <span class="text-gray-600">{{ "%.1f%%"|format(latest.geopolitics_cooperative_ratio * 100) }}</span>
+            </div>
+            {% if latest.geopolitics_event_count is not none %}
+            <div class="flex justify-between text-xs">
+                <span class="text-gray-400">Events</span>
+                <span class="text-gray-600">{{ "{:,}".format(latest.geopolitics_event_count) }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
 </div>
 

@@ -19,7 +19,10 @@ For each country pair, explain:
 2. Which pillar(s) drove the change
 3. Possible real-world context (trade agreements, geopolitical events, new flight routes, etc.)
 
-Keep each narrative to 2-3 sentences. Be specific about numbers."""
+Important formatting rules:
+- On first mention, refer to each country by its full name followed by its ISO3 code in parentheses, e.g. "United States (USA)" or "China (CHN)". After the first mention, you may use either the full name or code.
+- Use markdown formatting (bold, bullet points, etc.) for readability.
+- Keep each narrative to 2-3 sentences. Be specific about numbers."""
 
 
 async def generate_period_narratives(period: str, top_n: int = 10) -> int:
@@ -36,6 +39,9 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
         session.close()
         return 0
 
+    # Build country name lookup
+    countries = {c.iso3: c.name for c in repo.list_countries()}
+
     # Get pairs with largest composite scores (proxy for "most interesting")
     top_pairs = [(s.country_a, s.country_b) for s in snapshots[:top_n]]
 
@@ -50,13 +56,16 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
     count = 0
 
     for country_a, country_b in top_pairs:
+        name_a = countries.get(country_a, country_a)
+        name_b = countries.get(country_b, country_b)
+
         # Gather data upfront instead of relying on tool calling
         delta_info = get_index_delta.invoke({"country_a": country_a, "country_b": country_b})
         breakdown_info = get_pillar_breakdown.invoke({"country_a": country_a, "country_b": country_b, "period": period})
 
         messages = [
             SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Generate a narrative for {country_a}-{country_b} in period {period}.\n\nDelta:\n{delta_info}\n\nBreakdown:\n{breakdown_info}"),
+            HumanMessage(content=f"Generate a narrative for {name_a} ({country_a}) and {name_b} ({country_b}) in period {period}.\n\nDelta:\n{delta_info}\n\nBreakdown:\n{breakdown_info}"),
         ]
 
         response = await llm.ainvoke(messages)

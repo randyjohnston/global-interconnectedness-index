@@ -101,12 +101,19 @@ class IndexSnapshotRow(Base):
     country_a: Mapped[str] = mapped_column(String(3))
     country_b: Mapped[str] = mapped_column(String(3))
     period: Mapped[str] = mapped_column(String(10))
+    # Trade pillar
     trade_raw: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trade_log: Mapped[float | None] = mapped_column(Float, nullable=True)
     trade_normalized: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Travel pillar
     travel_raw: Mapped[float | None] = mapped_column(Float, nullable=True)
     travel_normalized: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Geopolitics pillar
     geopolitics_raw: Mapped[float | None] = mapped_column(Float, nullable=True)
     geopolitics_normalized: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geopolitics_avg_goldstein: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geopolitics_cooperative_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geopolitics_event_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     composite_score: Mapped[float] = mapped_column(Float, default=0.0)
     coverage: Mapped[str] = mapped_column(String(50), default="")  # comma-separated
     computed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
