@@ -19,8 +19,7 @@ For each country pair, explain:
 2. Which pillar(s) drove the change
 3. Possible real-world context (trade agreements, geopolitical events, new flight routes, etc.)
 
-Keep each narrative to 2-3 sentences. Be specific about numbers.
-Use the tools to get delta and breakdown data."""
+Keep each narrative to 2-3 sentences. Be specific about numbers."""
 
 
 async def generate_period_narratives(period: str, top_n: int = 10) -> int:
@@ -48,28 +47,19 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
         max_tokens=4096,
     )
 
-    llm_with_tools = llm.bind_tools([get_index_delta, get_pillar_breakdown])
     count = 0
 
     for country_a, country_b in top_pairs:
+        # Gather data upfront instead of relying on tool calling
+        delta_info = get_index_delta.invoke({"country_a": country_a, "country_b": country_b})
+        breakdown_info = get_pillar_breakdown.invoke({"country_a": country_a, "country_b": country_b, "period": period})
+
         messages = [
             SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Generate a narrative for {country_a}-{country_b} in period {period}. Use the tools to get the data first."),
+            HumanMessage(content=f"Generate a narrative for {country_a}-{country_b} in period {period}.\n\nDelta:\n{delta_info}\n\nBreakdown:\n{breakdown_info}"),
         ]
 
-        for _ in range(5):
-            response = await llm_with_tools.ainvoke(messages)
-            messages.append(response)
-
-            if not response.tool_calls:
-                break
-
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["name"]
-                tool_fn = get_index_delta if tool_name == "get_index_delta" else get_pillar_breakdown
-                tool_result = tool_fn.invoke(tool_call["args"])
-                messages.append({"role": "tool", "content": str(tool_result), "tool_call_id": tool_call["id"]})
-
+        response = await llm.ainvoke(messages)
         narrative = response.content if isinstance(response.content, str) else str(response.content)
         repo.save_narrative(country_a, country_b, period, narrative)
         count += 1

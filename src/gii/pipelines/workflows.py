@@ -12,7 +12,6 @@ with workflow.unsafe.imports_passed_through():
         fetch_and_store_gdelt,
         fetch_and_store_trade,
         generate_narratives,
-        ingest_and_store_unwto,
         run_quality_check,
     )
 
@@ -33,21 +32,15 @@ class TradeDataWorkflow:
 
 @workflow.defn
 class TravelDataWorkflow:
-    """Fetch flight routes and ingest UNWTO visitor data."""
+    """Fetch flight routes from OpenFlights."""
 
     @workflow.run
-    async def run(self, params: PipelineParams) -> dict:
-        flight_count = await workflow.execute_activity(
+    async def run(self, params: PipelineParams) -> int:
+        return await workflow.execute_activity(
             fetch_and_store_flights,
             params,
             start_to_close_timeout=timedelta(minutes=10),
         )
-        unwto_count = await workflow.execute_activity(
-            ingest_and_store_unwto,
-            params,
-            start_to_close_timeout=timedelta(minutes=5),
-        )
-        return {"flights": flight_count, "unwto": unwto_count}
 
 
 @workflow.defn
@@ -90,7 +83,7 @@ class MainRefreshWorkflow:
         results["quality"] = await workflow.execute_activity(
             run_quality_check,
             params,
-            start_to_close_timeout=timedelta(minutes=5),
+            start_to_close_timeout=timedelta(minutes=15),
         )
 
         # Phase 3: Compute composite index
@@ -104,7 +97,7 @@ class MainRefreshWorkflow:
         results["narratives"] = await workflow.execute_activity(
             generate_narratives,
             params,
-            start_to_close_timeout=timedelta(minutes=10),
+            start_to_close_timeout=timedelta(minutes=90),
         )
 
         return results

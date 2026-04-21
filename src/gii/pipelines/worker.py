@@ -13,7 +13,6 @@ from gii.pipelines.activities import (
     fetch_and_store_gdelt,
     fetch_and_store_trade,
     generate_narratives,
-    ingest_and_store_unwto,
     run_quality_check,
 )
 from gii.pipelines.workflows import (
@@ -43,7 +42,6 @@ async def main():
         activities=[
             fetch_and_store_trade,
             fetch_and_store_flights,
-            ingest_and_store_unwto,
             fetch_and_store_gdelt,
             compute_and_store_index,
             run_quality_check,

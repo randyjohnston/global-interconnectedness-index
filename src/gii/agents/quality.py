@@ -34,7 +34,6 @@ Check for:
 3. Temporal discontinuities — sudden jumps or drops
 4. Cross-source inconsistencies — e.g., high trade but zero flights between major partners
 
-Use the query_recent_ingestion tool to inspect each data source.
 Return a structured quality report."""
 
 
@@ -44,6 +43,16 @@ async def check_data_quality(period: str) -> str:
         logger.warning("NVIDIA API key not configured, skipping quality check")
         return "Skipped: no API key"
 
+    # Gather all source data upfront instead of relying on tool calling
+    trade_info = query_recent_ingestion.invoke({"source": "trade", "period": period})
+    flight_info = query_recent_ingestion.invoke({"source": "flights", "period": period})
+    geo_info = query_recent_ingestion.invoke({"source": "geopolitics", "period": period})
+
+    data_summary = f"""Data ingestion summary for {period}:
+- {trade_info}
+- {flight_info}
+- {geo_info}"""
+
     llm = ChatNVIDIA(
         model=settings.llm_model,
         api_key=settings.nvidia_api_key,
@@ -52,26 +61,12 @@ async def check_data_quality(period: str) -> str:
         max_tokens=2048,
     )
 
-    llm_with_tools = llm.bind_tools([query_recent_ingestion])
-
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=f"Check data quality for period: {period}. Query each source (trade, flights, geopolitics) and report findings."),
+        HumanMessage(content=f"Analyze this data for quality issues:\n\n{data_summary}"),
     ]
 
-    # Agent loop — let the LLM call tools iteratively
-    for _ in range(5):
-        response = await llm_with_tools.ainvoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            break
-
-        for tool_call in response.tool_calls:
-            tool_result = query_recent_ingestion.invoke(tool_call["args"])
-            messages.append({"role": "tool", "content": str(tool_result), "tool_call_id": tool_call["id"]})
-
-    # Extract final response
+    response = await llm.ainvoke(messages)
     final_text = response.content if isinstance(response.content, str) else str(response.content)
 
     # Store report

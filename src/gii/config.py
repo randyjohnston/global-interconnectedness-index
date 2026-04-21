@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # NVIDIA AI
     nvidia_api_key: str = ""
-    llm_model: str = "minimaxai/minimax-m2.7"
+    llm_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 
     # Index weights
     weight_trade: float = 0.40

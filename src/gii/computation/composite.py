@@ -64,6 +64,11 @@ def compute_composite_scores(
     flight_norm = _normalize_sparse(flight_raw)
     geo_norm = _normalize_sparse(geo_raw)
 
+    # Coverage confidence: small discount for missing pillars so pairs with
+    # real data are preferred, all else being equal.
+    COVERAGE_CONFIDENCE = {3: 1.0, 2: 0.95, 1: 0.85}
+    NEUTRAL = 50.0  # midpoint of 0-100 scale, used for missing pillars
+
     # Build composite scores
     results = []
     for i, (a, b) in enumerate(pair_list):
@@ -85,11 +90,16 @@ def compute_composite_scores(
         if not available:
             continue
 
-        w = weights.for_available(available)
-        composite = sum(
-            w[pillar] * pillar_scores[pillar].normalized_value
-            for pillar in available
+        # Use actual weights for all 3 pillars — missing pillars get neutral (50)
+        w_all = weights.for_available(["trade", "travel", "geopolitics"])
+        composite = (
+            w_all["trade"] * (pillar_scores["trade"].normalized_value if "trade" in pillar_scores else NEUTRAL)
+            + w_all["travel"] * (pillar_scores["travel"].normalized_value if "travel" in pillar_scores else NEUTRAL)
+            + w_all["geopolitics"] * (pillar_scores["geopolitics"].normalized_value if "geopolitics" in pillar_scores else NEUTRAL)
         )
+
+        # Apply coverage confidence discount
+        composite *= COVERAGE_CONFIDENCE[len(available)]
 
         results.append(CompositeScore(
             country_a=a, country_b=b, period=period,

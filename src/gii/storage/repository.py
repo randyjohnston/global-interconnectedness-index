@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from gii.models.country import CountryPair
 from gii.models.geopolitics import CooperationScore
 from gii.models.trade import BilateralTrade
-from gii.models.travel import FlightRoute, VisitorFlow
+from gii.models.travel import FlightRoute
 from gii.storage.models import (
     BilateralTradeRow,
     CountryRow,
@@ -13,7 +13,6 @@ from gii.storage.models import (
     GeopoliticsScoreRow,
     IndexSnapshotRow,
     NarrativeReportRow,
-    VisitorFlowRow,
 )
 
 
@@ -76,18 +75,6 @@ class Repository:
         return list(self.session.scalars(
             select(FlightConnectivityRow).where(FlightConnectivityRow.period == period)
         ))
-
-    # --- Visitors ---
-
-    def upsert_visitors(self, flow: VisitorFlow) -> None:
-        stmt = pg_insert(VisitorFlowRow).values(
-            origin=flow.origin, destination=flow.destination,
-            period=flow.period, visitor_count=flow.visitor_count,
-        ).on_conflict_do_update(
-            index_elements=["origin", "destination", "period"],
-            set_={"visitor_count": flow.visitor_count},
-        )
-        self.session.execute(stmt)
 
     # --- Geopolitics ---
 

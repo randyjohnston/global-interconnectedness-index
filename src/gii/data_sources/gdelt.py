@@ -1,8 +1,10 @@
 """GDELT BigQuery client for geopolitical event data."""
 
 import logging
+from pathlib import Path
 
 from google.cloud import bigquery
+from google.oauth2 import service_account
 
 from gii.config import settings
 from gii.data_sources.country_codes import fips_to_iso3
@@ -10,6 +12,57 @@ from gii.models.country import CountryPair
 from gii.models.geopolitics import CooperationScore
 
 logger = logging.getLogger(__name__)
+
+
+def _get_bigquery_client() -> bigquery.Client:
+    """Build a BigQuery client using the best available credentials.
+
+    Resolution order:
+    1. GII_GCP_CREDENTIALS_PATH in .env — explicit service account JSON file
+    2. GOOGLE_APPLICATION_CREDENTIALS env var — standard GCP convention
+    3. Application Default Credentials (ADC) — works on GCP, or after
+       running `gcloud auth application-default login` locally
+    """
+    # Path 1: explicit service account file from our config
+    if settings.gcp_credentials_path:
+        path = Path(settings.gcp_credentials_path)
+        if path.exists():
+            logger.info(f"GDELT: using service account from {path}")
+            credentials = service_account.Credentials.from_service_account_file(
+                str(path),
+                scopes=["https://www.googleapis.com/auth/bigquery"],
+            )
+            return bigquery.Client(project=settings.gcp_project_id, credentials=credentials)
+        else:
+            logger.warning(f"GDELT: credentials file not found at {path}, falling back to ADC")
+
+    # Path 2 & 3: GOOGLE_APPLICATION_CREDENTIALS env var or ADC
+    # google-cloud-bigquery handles both automatically
+    logger.info("GDELT: using Application Default Credentials")
+    return bigquery.Client(project=settings.gcp_project_id)
+
+
+# Countries we track — used to validate GDELT codes
+TRACKED_ISO3 = {
+    "USA", "CHN", "DEU", "JPN", "GBR", "FRA", "IND", "ITA", "BRA", "CAN",
+    "KOR", "RUS", "AUS", "ESP", "MEX", "IDN", "NLD", "SAU", "TUR", "CHE",
+    "POL", "SWE", "BEL", "THA", "ARG", "NGA", "AUT", "NOR", "ARE", "ISR",
+    "SGP", "MYS", "PHL", "ZAF", "COL", "EGY", "VNM", "CHL", "IRL", "DNK",
+    "FIN", "PRT", "CZE", "NZL", "GRC", "PER", "KEN", "PAK", "BGD", "TWN",
+}
+
+
+def _resolve_country_code(code: str) -> str | None:
+    """Resolve a GDELT country code to ISO3.
+
+    GDELT v2 mostly uses ISO3 directly. Falls back to FIPS lookup for older codes.
+    """
+    code = code.strip().upper()
+    if code in TRACKED_ISO3:
+        return code
+    # Try FIPS lookup for 2-letter codes
+    return fips_to_iso3(code)
+
 
 GDELT_QUERY = """
 SELECT
@@ -38,15 +91,15 @@ async def query_gdelt_events(
 ) -> list[CooperationScore]:
     """Query GDELT BigQuery for bilateral geopolitical event aggregates.
 
-    GDELT uses FIPS country codes, which we convert to ISO3.
-    Requires GCP credentials configured via local environment variable or 
-    service account.
+    GDELT v2 uses ISO 3166-1 alpha-3 country codes (e.g. USA, CHN, RUS).
+    Some older events may use FIPS codes — we handle both.
+    Requires GCP credentials configured via .env or ADC.
     """
     if not settings.gcp_project_id:
         logger.warning("GCP project not configured, skipping GDELT")
         return []
 
-    client = bigquery.Client(project=settings.gcp_project_id)
+    client = _get_bigquery_client()
 
     query = GDELT_QUERY.format(dataset=settings.gdelt_dataset)
     job_config = bigquery.QueryJobConfig(
@@ -64,8 +117,8 @@ async def query_gdelt_events(
     pair_data: dict[tuple[str, str], dict] = {}
 
     for row in rows:
-        iso3_a = fips_to_iso3(row.Actor1CountryCode)
-        iso3_b = fips_to_iso3(row.Actor2CountryCode)
+        iso3_a = _resolve_country_code(row.Actor1CountryCode)
+        iso3_b = _resolve_country_code(row.Actor2CountryCode)
 
         if not iso3_a or not iso3_b:
             continue

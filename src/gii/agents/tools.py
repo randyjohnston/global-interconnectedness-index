@@ -11,7 +11,7 @@ def query_recent_ingestion(source: str, period: str) -> str:
     """Get statistics about the most recent data ingestion for a source.
 
     Args:
-        source: One of "trade", "flights", "visitors", "geopolitics"
+        source: One of "trade", "flights", "geopolitics"
         period: The time period to check, e.g. "2025"
     """
     session = get_session()

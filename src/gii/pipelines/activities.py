@@ -1,6 +1,8 @@
 """Temporal activity implementations — the actual work units."""
 
+import asyncio
 import logging
+import random
 from dataclasses import dataclass
 
 from temporalio import activity
@@ -33,21 +35,30 @@ async def fetch_and_store_trade(params: PipelineParams) -> int:
     # Get all tracked countries
     countries = repo.list_countries()
     iso3_list = [c.iso3 for c in countries]
+    random.shuffle(iso3_list)
 
     total_stored = 0
-    # Fetch for each reporter (Comtrade rate limit: batch carefully)
-    for reporter in iso3_list:
+    errors = []
+    # Fetch for each reporter (Comtrade free tier: 100 calls/day, throttle to avoid 429s)
+    for i, reporter in enumerate(iso3_list):
         partners = [c for c in iso3_list if c != reporter]
         try:
             trades = await fetch_bilateral_trade(reporter, partners, params.year)
             for trade in trades:
                 repo.upsert_trade(trade)
             total_stored += len(trades)
+            logger.info(f"Comtrade: {reporter} ({i+1}/{len(iso3_list)}) -> {len(trades)} flows")
         except Exception as e:
-            logger.error(f"Comtrade fetch failed for {reporter}: {e}")
+            errors.append(reporter)
+            logger.error(f"Comtrade fetch failed for {reporter} ({i+1}/{len(iso3_list)}): {e}")
             activity.heartbeat(f"error:{reporter}")
 
         activity.heartbeat(f"trade:{reporter}")
+        # Rate limit: ~1.5s between calls to stay under Comtrade limits
+        await asyncio.sleep(1.5)
+
+    if errors:
+        logger.warning(f"Comtrade: {len(errors)} reporters failed: {errors}")
 
     repo.commit()
     session.close()
@@ -78,26 +89,6 @@ async def fetch_and_store_flights(params: PipelineParams) -> int:
     return len(routes)
 
 
-@activity.defn
-async def ingest_and_store_unwto(params: PipelineParams) -> int:
-    """Ingest UNWTO CSV data and store in DB."""
-    from gii.data_sources.unwto import ingest_unwto_visitors
-    from gii.storage.database import get_session
-    from gii.storage.repository import Repository
-
-    flows = ingest_unwto_visitors(params.period)
-
-    session = get_session()
-    repo = Repository(session)
-    for flow in flows:
-        repo.upsert_visitors(flow)
-    repo.commit()
-    session.close()
-
-    logger.info(f"UNWTO: stored {len(flows)} visitor flows for {params.period}")
-    return len(flows)
-
-
 # --- Geopolitics Activities ---
 
 
@@ -108,7 +99,9 @@ async def fetch_and_store_gdelt(params: PipelineParams) -> int:
     from gii.storage.database import get_session
     from gii.storage.repository import Repository
 
+    logger.info(f"GDELT activity: year={params.year}, gcp_project={settings.gcp_project_id!r}, creds={settings.gcp_credentials_path!r}")
     scores = await query_gdelt_events(params.year)
+    logger.info(f"GDELT activity: query returned {len(scores)} scores")
 
     session = get_session()
     repo = Repository(session)
