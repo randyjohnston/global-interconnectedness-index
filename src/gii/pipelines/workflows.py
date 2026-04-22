@@ -32,7 +32,7 @@ class TradeDataWorkflow:
 
 @workflow.defn
 class TravelDataWorkflow:
-    """Fetch flight routes from OpenFlights."""
+    """Fetch flight routes from airline route dataset."""
 
     @workflow.run
     async def run(self, params: PipelineParams) -> int:

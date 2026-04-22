@@ -71,8 +71,8 @@ async def fetch_and_store_trade(params: PipelineParams) -> int:
 
 @activity.defn
 async def fetch_and_store_flights(params: PipelineParams) -> int:
-    """Fetch OpenFlights routes and store in DB."""
-    from gii.data_sources.openflights import fetch_flight_routes
+    """Fetch airline route data and store in DB."""
+    from gii.data_sources.airline_routes import fetch_flight_routes
     from gii.storage.database import get_session
     from gii.storage.repository import Repository
 

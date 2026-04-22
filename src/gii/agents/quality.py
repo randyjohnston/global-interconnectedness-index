@@ -2,10 +2,10 @@
 
 import logging
 
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
 
+from gii.agents.llm import get_llm
 from gii.agents.tools import query_recent_ingestion
 from gii.config import settings
 from gii.storage.database import get_session
@@ -43,7 +43,7 @@ async def check_data_quality(period: str) -> str:
         logger.warning("NVIDIA API key not configured, skipping quality check")
         return "Skipped: no API key"
 
-    # Gather all source data upfront instead of relying on tool calling
+    # Gather all source data upfront
     trade_info = query_recent_ingestion.invoke({"source": "trade", "period": period})
     flight_info = query_recent_ingestion.invoke({"source": "flights", "period": period})
     geo_info = query_recent_ingestion.invoke({"source": "geopolitics", "period": period})
@@ -53,13 +53,7 @@ async def check_data_quality(period: str) -> str:
 - {flight_info}
 - {geo_info}"""
 
-    llm = ChatNVIDIA(
-        model=settings.llm_model,
-        api_key=settings.nvidia_api_key,
-        temperature=1,
-        top_p=0.95,
-        max_tokens=2048,
-    )
+    llm = get_llm(max_tokens=2048)
 
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),

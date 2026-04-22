@@ -31,6 +31,10 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "alembic>=1.15,<2",
     "langchain-nvidia-ai-endpoints>=0.3.19",
+    "langgraph>=1.0.1",
+    "langsmith>=0.7.32",
+    "deepagents>=0.0.5",
+    "sse-starlette>=3.3.4",
 ]
 
 [project.scripts]

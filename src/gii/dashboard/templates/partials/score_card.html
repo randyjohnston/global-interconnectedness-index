@@ -25,19 +25,145 @@
     <div class="text-xs text-gray-400">Coverage: {{ snapshot.coverage }}</div>
 </div>
 
-{% if narrative %}
-<div class="mt-4 pt-4 border-t border-gray-100">
-    <div id="narrative-content" class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none"></div>
-    <p class="text-xs text-gray-400 mt-2">Generated {{ narrative.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+<div class="mt-4 pt-4 border-t border-gray-100" x-data="narrativeStream()">
+    {% if narrative %}
+    <div x-show="!streaming && !streamed">
+        <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" id="existing-narrative"></div>
+        <div class="flex items-center justify-between mt-2">
+            <p class="text-xs text-gray-400">Generated {{ narrative.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            <button
+                @click="generate()"
+                class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            >Regenerate</button>
+        </div>
+        <script>
+            document.getElementById('existing-narrative').innerHTML = marked.parse({{ narrative.narrative_text | tojson }});
+        </script>
+    </div>
+    {% else %}
+    <div x-show="!streaming && !streamed">
+        <p class="text-sm text-gray-400 italic mb-2">No AI analysis available for this pair yet.</p>
+        <button
+            @click="generate()"
+            class="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-3 py-1.5 transition-colors"
+        >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Generate Analysis
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Streaming state -->
+    <div x-show="streaming" x-cloak>
+        <div class="flex items-center gap-2 mb-2">
+            <div class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+            <span class="text-xs text-indigo-600 font-medium" x-text="statusText">Generating...</span>
+        </div>
+        <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" x-ref="streamOutput"></div>
+    </div>
+
+    <!-- Completed stream state -->
+    <div x-show="streamed && !streaming" x-cloak>
+        <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" x-ref="finalOutput"></div>
+        <div class="flex items-center justify-between mt-2">
+            <p class="text-xs text-gray-400">Generated just now</p>
+            <button
+                @click="generate()"
+                class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            >Regenerate</button>
+        </div>
+    </div>
+
+    <!-- Error state -->
+    <div x-show="error" x-cloak>
+        <p class="text-sm text-red-500" x-text="error"></p>
+        <button
+            @click="generate()"
+            class="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+        >Try again</button>
+    </div>
+
     <script>
-        document.getElementById('narrative-content').innerHTML = marked.parse({{ narrative.narrative_text | tojson }});
+        function narrativeStream() {
+            return {
+                streaming: false,
+                streamed: false,
+                error: null,
+                rawText: '',
+                statusText: 'Connecting to agent...',
+                generate() {
+                    this.streaming = true;
+                    this.streamed = false;
+                    this.error = null;
+                    this.rawText = '';
+                    this.statusText = 'Connecting to agent...';
+
+                    const url = '/api/narrative/stream/{{ country_a }}/{{ country_b }}/{{ period }}';
+                    const es = new EventSource(url);
+                    let tokenCount = 0;
+
+                    es.addEventListener('status', (e) => {
+                        const data = JSON.parse(e.data);
+                        this.statusText = data.text;
+                    });
+
+                    es.addEventListener('token', (e) => {
+                        const data = JSON.parse(e.data);
+                        this.rawText += data.token;
+                        tokenCount++;
+                        if (tokenCount === 1) {
+                            this.statusText = 'Writing narrative...';
+                        }
+                        // Re-render markdown on each token
+                        if (this.$refs.streamOutput) {
+                            this.$refs.streamOutput.innerHTML = marked.parse(this.rawText);
+                        }
+                    });
+
+                    es.addEventListener('done', (e) => {
+                        es.close();
+                        this.streaming = false;
+                        this.streamed = true;
+                        this.$nextTick(() => {
+                            if (this.$refs.finalOutput) {
+                                this.$refs.finalOutput.innerHTML = marked.parse(this.rawText);
+                            }
+                        });
+                    });
+
+                    es.addEventListener('error', (e) => {
+                        es.close();
+                        this.streaming = false;
+                        try {
+                            const data = JSON.parse(e.data);
+                            this.error = data.error || 'Generation failed';
+                        } catch {
+                            this.error = 'Connection lost — generation may still be in progress';
+                        }
+                    });
+
+                    es.onerror = () => {
+                        es.close();
+                        if (this.streaming) {
+                            this.streaming = false;
+                            if (this.rawText) {
+                                // Got partial content — show what we have
+                                this.streamed = true;
+                                this.$nextTick(() => {
+                                    if (this.$refs.finalOutput) {
+                                        this.$refs.finalOutput.innerHTML = marked.parse(this.rawText);
+                                    }
+                                });
+                            } else {
+                                this.error = 'Connection failed — check that the server is running';
+                            }
+                        }
+                    };
+                }
+            };
+        }
     </script>
 </div>
-{% else %}
-<div class="mt-4 pt-4 border-t border-gray-100">
-    <p class="text-sm text-gray-400 italic">No AI analysis available for this pair yet.</p>
-</div>
-{% endif %}
 
 {% else %}
 <div class="text-gray-400 text-sm">No data available for this pair/period.</div>

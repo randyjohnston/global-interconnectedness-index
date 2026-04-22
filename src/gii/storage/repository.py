@@ -126,8 +126,13 @@ class Repository:
     # --- Narratives ---
 
     def save_narrative(self, country_a: str, country_b: str, period: str, text: str) -> None:
+        pair = CountryPair.create(country_a, country_b)
+        # Delete existing narrative for this pair/period, then insert fresh
+        self.session.query(NarrativeReportRow).filter_by(
+            country_a=pair.country_a, country_b=pair.country_b, period=period,
+        ).delete()
         self.session.add(NarrativeReportRow(
-            country_a=country_a, country_b=country_b, period=period, narrative_text=text,
+            country_a=pair.country_a, country_b=pair.country_b, period=period, narrative_text=text,
         ))
 
     def get_narrative(self, country_a: str, country_b: str, period: str) -> NarrativeReportRow | None:

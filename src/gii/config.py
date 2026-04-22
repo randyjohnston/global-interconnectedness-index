@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     nvidia_api_key: str = ""
     llm_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 
+    # LangSmith observability
+    langsmith_api_key: str = ""
+    langsmith_project: str = "gii"
+    langsmith_tracing: str = "true"
+
     # Index weights
     weight_trade: float = 0.40
     weight_travel: float = 0.30

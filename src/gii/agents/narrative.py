@@ -1,10 +1,17 @@
-"""Narrative agent — generates human-readable explanations of index changes."""
+"""Narrative agent — LangChain Deep Agent that generates index change explanations.
+
+Uses deepagents.create_deep_agent to give the LLM full control over
+tool invocation. The agent decides when to call get_index_delta and
+get_pillar_breakdown to gather context before writing the narrative.
+
+All runs are traced in LangSmith when configured.
+"""
 
 import logging
 
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_core.messages import SystemMessage, HumanMessage
+from deepagents import create_deep_agent
 
+from gii.agents.llm import get_llm
 from gii.agents.tools import get_index_delta, get_pillar_breakdown
 from gii.config import settings
 from gii.storage.database import get_session
@@ -12,17 +19,28 @@ from gii.storage.repository import Repository
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an analyst writing concise narratives about changes in the Global Interconnectedness Index.
+INSTRUCTIONS = """You are an analyst writing concise narratives about changes in the Global Interconnectedness Index.
 
-For each country pair, explain:
-1. What changed in their composite score
-2. Which pillar(s) drove the change
-3. Possible real-world context (trade agreements, geopolitical events, new flight routes, etc.)
+You have tools to look up index data. For each country pair you are asked about:
+1. Use get_pillar_breakdown to see the current pillar scores
+2. Use get_index_delta to see how scores changed vs the previous period
+3. Write a 2-3 sentence narrative explaining what changed and why
 
 Important formatting rules:
 - On first mention, refer to each country by its full name followed by its ISO3 code in parentheses, e.g. "United States (USA)" or "China (CHN)". After the first mention, you may use either the full name or code.
 - Use markdown formatting (bold, bullet points, etc.) for readability.
-- Keep each narrative to 2-3 sentences. Be specific about numbers."""
+- Be specific about numbers.
+- After gathering data with tools, write your final narrative as a plain text response (no tool calls)."""
+
+
+def _build_agent():
+    """Build the narrative deep agent."""
+    llm = get_llm()
+    return create_deep_agent(
+        tools=[get_index_delta, get_pillar_breakdown],
+        instructions=INSTRUCTIONS,
+        model=llm,
+    )
 
 
 async def generate_period_narratives(period: str, top_n: int = 10) -> int:
@@ -45,33 +63,36 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
     # Get pairs with largest composite scores (proxy for "most interesting")
     top_pairs = [(s.country_a, s.country_b) for s in snapshots[:top_n]]
 
-    llm = ChatNVIDIA(
-        model=settings.llm_model,
-        api_key=settings.nvidia_api_key,
-        temperature=1,
-        top_p=0.95,
-        max_tokens=4096,
-    )
-
+    agent = _build_agent()
     count = 0
 
     for country_a, country_b in top_pairs:
         name_a = countries.get(country_a, country_a)
         name_b = countries.get(country_b, country_b)
 
-        # Gather data upfront instead of relying on tool calling
-        delta_info = get_index_delta.invoke({"country_a": country_a, "country_b": country_b})
-        breakdown_info = get_pillar_breakdown.invoke({"country_a": country_a, "country_b": country_b, "period": period})
+        try:
+            result = await agent.ainvoke({
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Generate a narrative for {name_a} ({country_a}) "
+                            f"and {name_b} ({country_b}) in period {period}. "
+                            f"Use the tools to gather data first."
+                        ),
+                    }
+                ],
+            })
 
-        messages = [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Generate a narrative for {name_a} ({country_a}) and {name_b} ({country_b}) in period {period}.\n\nDelta:\n{delta_info}\n\nBreakdown:\n{breakdown_info}"),
-        ]
+            last_message = result["messages"][-1]
+            narrative = last_message.content if isinstance(last_message.content, str) else str(last_message.content)
 
-        response = await llm.ainvoke(messages)
-        narrative = response.content if isinstance(response.content, str) else str(response.content)
-        repo.save_narrative(country_a, country_b, period, narrative)
-        count += 1
+            repo.save_narrative(country_a, country_b, period, narrative)
+            count += 1
+            logger.info(f"Narrative: {country_a}-{country_b} done ({count}/{len(top_pairs)})")
+
+        except Exception as e:
+            logger.error(f"Narrative failed for {country_a}-{country_b}: {e}")
 
     repo.commit()
     session.close()
