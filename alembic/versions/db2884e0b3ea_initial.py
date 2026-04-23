@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: a328569384f9
+Revision ID: db2884e0b3ea
 Revises: 
-Create Date: 2026-04-17 21:51:12.463464
+Create Date: 2026-04-22 22:47:37.793795
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a328569384f9'
+revision: str = 'db2884e0b3ea'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -31,14 +31,16 @@ def upgrade() -> None:
     sa.Column('ingested_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint('country_a < country_b'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('country_a', 'country_b', 'period')
+    sa.UniqueConstraint('country_a', 'country_b', 'period'),
+    schema='gii'
     )
     op.create_table('countries',
     sa.Column('iso3', sa.String(length=3), nullable=False),
     sa.Column('iso2', sa.String(length=2), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
     sa.Column('region', sa.String(length=50), nullable=False),
-    sa.PrimaryKeyConstraint('iso3')
+    sa.PrimaryKeyConstraint('iso3'),
+    schema='gii'
     )
     op.create_table('flight_connectivity',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -49,7 +51,8 @@ def upgrade() -> None:
     sa.Column('ingested_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint('country_a < country_b'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('country_a', 'country_b', 'period')
+    sa.UniqueConstraint('country_a', 'country_b', 'period'),
+    schema='gii'
     )
     op.create_table('geopolitics_scores',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -62,7 +65,8 @@ def upgrade() -> None:
     sa.Column('ingested_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint('country_a < country_b'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('country_a', 'country_b', 'period')
+    sa.UniqueConstraint('country_a', 'country_b', 'period'),
+    schema='gii'
     )
     op.create_table('index_snapshots',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -70,17 +74,21 @@ def upgrade() -> None:
     sa.Column('country_b', sa.String(length=3), nullable=False),
     sa.Column('period', sa.String(length=10), nullable=False),
     sa.Column('trade_raw', sa.Float(), nullable=True),
+    sa.Column('trade_log', sa.Float(), nullable=True),
     sa.Column('trade_normalized', sa.Float(), nullable=True),
     sa.Column('travel_raw', sa.Float(), nullable=True),
     sa.Column('travel_normalized', sa.Float(), nullable=True),
     sa.Column('geopolitics_raw', sa.Float(), nullable=True),
     sa.Column('geopolitics_normalized', sa.Float(), nullable=True),
+    sa.Column('geopolitics_avg_goldstein', sa.Float(), nullable=True),
+    sa.Column('geopolitics_cooperative_ratio', sa.Float(), nullable=True),
     sa.Column('composite_score', sa.Float(), nullable=False),
     sa.Column('coverage', sa.String(length=50), nullable=False),
     sa.Column('computed_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint('country_a < country_b'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('country_a', 'country_b', 'period')
+    sa.UniqueConstraint('country_a', 'country_b', 'period'),
+    schema='gii'
     )
     op.create_table('narrative_reports',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -89,7 +97,8 @@ def upgrade() -> None:
     sa.Column('period', sa.String(length=10), nullable=False),
     sa.Column('narrative_text', sa.Text(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    schema='gii'
     )
     op.create_table('quality_reports',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -97,7 +106,8 @@ def upgrade() -> None:
     sa.Column('findings', sa.JSON(), nullable=False),
     sa.Column('severity', sa.String(length=20), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    schema='gii'
     )
     op.create_table('visitor_flows',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -107,19 +117,20 @@ def upgrade() -> None:
     sa.Column('visitor_count', sa.Integer(), nullable=False),
     sa.Column('ingested_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('origin', 'destination', 'period')
+    sa.UniqueConstraint('origin', 'destination', 'period'),
+    schema='gii'
     )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table('visitor_flows')
-    op.drop_table('quality_reports')
-    op.drop_table('narrative_reports')
-    op.drop_table('index_snapshots')
-    op.drop_table('geopolitics_scores')
-    op.drop_table('flight_connectivity')
-    op.drop_table('countries')
-    op.drop_table('bilateral_trade')
+    op.drop_table('visitor_flows', schema='gii')
+    op.drop_table('quality_reports', schema='gii')
+    op.drop_table('narrative_reports', schema='gii')
+    op.drop_table('index_snapshots', schema='gii')
+    op.drop_table('geopolitics_scores', schema='gii')
+    op.drop_table('flight_connectivity', schema='gii')
+    op.drop_table('countries', schema='gii')
+    op.drop_table('bilateral_trade', schema='gii')
     # ### end Alembic commands ###

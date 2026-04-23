@@ -20,6 +20,7 @@ class Base(DeclarativeBase):
 
 class CountryRow(Base):
     __tablename__ = "countries"
+    __table_args__ = {'schema': 'gii'}
 
     iso3: Mapped[str] = mapped_column(String(3), primary_key=True)
     iso2: Mapped[str] = mapped_column(String(2))
@@ -32,6 +33,7 @@ class BilateralTradeRow(Base):
     __table_args__ = (
         UniqueConstraint("country_a", "country_b", "period"),
         CheckConstraint("country_a < country_b"),
+        {'schema': 'gii'}
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -49,6 +51,7 @@ class FlightConnectivityRow(Base):
     __table_args__ = (
         UniqueConstraint("country_a", "country_b", "period"),
         CheckConstraint("country_a < country_b"),
+        {'schema': 'gii'}
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -59,25 +62,12 @@ class FlightConnectivityRow(Base):
     ingested_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-class VisitorFlowRow(Base):
-    __tablename__ = "visitor_flows"
-    __table_args__ = (
-        UniqueConstraint("origin", "destination", "period"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    origin: Mapped[str] = mapped_column(String(3))
-    destination: Mapped[str] = mapped_column(String(3))
-    period: Mapped[str] = mapped_column(String(10))
-    visitor_count: Mapped[int] = mapped_column(Integer, default=0)
-    ingested_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-
 class GeopoliticsScoreRow(Base):
     __tablename__ = "geopolitics_scores"
     __table_args__ = (
         UniqueConstraint("country_a", "country_b", "period"),
         CheckConstraint("country_a < country_b"),
+        {'schema': 'gii'}
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -95,6 +85,7 @@ class IndexSnapshotRow(Base):
     __table_args__ = (
         UniqueConstraint("country_a", "country_b", "period"),
         CheckConstraint("country_a < country_b"),
+        {'schema': 'gii'}
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -113,7 +104,6 @@ class IndexSnapshotRow(Base):
     geopolitics_normalized: Mapped[float | None] = mapped_column(Float, nullable=True)
     geopolitics_avg_goldstein: Mapped[float | None] = mapped_column(Float, nullable=True)
     geopolitics_cooperative_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
-    geopolitics_event_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     composite_score: Mapped[float] = mapped_column(Float, default=0.0)
     coverage: Mapped[str] = mapped_column(String(50), default="")  # comma-separated
     computed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -121,6 +111,7 @@ class IndexSnapshotRow(Base):
 
 class QualityReportRow(Base):
     __tablename__ = "quality_reports"
+    __table_args__ = {'schema': 'gii'}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     snapshot_period: Mapped[str] = mapped_column(String(10))
@@ -131,6 +122,7 @@ class QualityReportRow(Base):
 
 class NarrativeReportRow(Base):
     __tablename__ = "narrative_reports"
+    __table_args__ = {'schema': 'gii'}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     country_a: Mapped[str] = mapped_column(String(3))

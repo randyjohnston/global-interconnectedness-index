@@ -110,7 +110,7 @@ def score_card_partial(request: Request, country_a: str, country_b: str, period:
 @router.get("/api/narrative/stream/{country_a}/{country_b}/{period}")
 async def stream_narrative(country_a: str, country_b: str, period: str):
     """SSE endpoint — streams narrative tokens from the deep agent."""
-    from gii.agents.narrative import _build_agent
+    from gii.agents.narrative import build_agent
     from gii.config import settings
     from gii.models.country import CountryPair
     from gii.storage.database import get_session
@@ -129,7 +129,7 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
         name_a = countries.get(pair.country_a, pair.country_a)
         name_b = countries.get(pair.country_b, pair.country_b)
 
-        agent = _build_agent()
+        agent = build_agent()
         full_text = ""
         # Track each LLM call: buffer text, flush only if no tool calls
         current_call_text = ""

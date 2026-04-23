@@ -33,7 +33,7 @@ Important formatting rules:
 - After gathering data with tools, write your final narrative as a plain text response (no tool calls)."""
 
 
-def _build_agent():
+def build_agent():
     """Build the narrative deep agent."""
     llm = get_llm()
     return create_deep_agent(
@@ -63,7 +63,7 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
     # Get pairs with largest composite scores (proxy for "most interesting")
     top_pairs = [(s.country_a, s.country_b) for s in snapshots[:top_n]]
 
-    agent = _build_agent()
+    agent = build_agent()
     count = 0
 
     for country_a, country_b in top_pairs:
