@@ -10,6 +10,7 @@ All runs are traced in LangSmith when configured.
 import logging
 
 import httpx
+import langsmith
 from deepagents import create_deep_agent
 
 from gii.agents.llm import get_llm
@@ -44,7 +45,8 @@ def build_agent():
     )
 
 
-async def generate_period_narratives(period: str, top_n: int = 10) -> int:
+@langsmith.traceable(name="generate_narratives", run_type="chain")
+async def generate_period_narratives(period: str, top_n: int = 10, source: str = "temporal") -> int:
     """Generate narratives for the top movers in a period."""
     if not settings.nvidia_api_key:
         logger.warning("NVIDIA API key not configured, skipping narratives")
@@ -84,23 +86,32 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
         name_b = countries.get(country_b, country_b)
 
         try:
-            result = await agent.ainvoke({
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Generate a narrative for {name_a} ({country_a}) "
-                            f"and {name_b} ({country_b}) in period {period}. "
-                            f"Use the tools to gather data first."
-                        ),
-                    }
-                ],
-            })
+            result = await agent.ainvoke(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Generate a narrative for {name_a} ({country_a}) "
+                                f"and {name_b} ({country_b}) in period {period}. "
+                                f"Use the tools to gather data first."
+                            ),
+                        }
+                    ],
+                },
+                config={
+                    "run_name": "generate_narrative",
+                    "tags": [source],
+                    "metadata": {"country_a": country_a, "country_b": country_b, "period": period},
+                },
+            )
 
             # Walk backwards to find the last AI message with actual text (not a tool call)
             narrative = ""
             for msg in reversed(result["messages"]):
-                if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content.strip():
+                if msg.type != "ai":
+                    continue
+                if isinstance(msg.content, str) and msg.content.strip():
                     if not (hasattr(msg, "tool_calls") and msg.tool_calls):
                         narrative = msg.content
                         break

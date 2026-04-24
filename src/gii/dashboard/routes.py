@@ -152,6 +152,11 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
                     ],
                 },
                 version="v2",
+                config={
+                    "run_name": "generate_narrative",
+                    "tags": ["ui"],
+                    "metadata": {"country_a": pair.country_a, "country_b": pair.country_b, "period": period},
+                },
             ):
                 kind = event.get("event")
 

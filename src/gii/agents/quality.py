@@ -2,6 +2,7 @@
 
 import logging
 
+import langsmith
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
 
@@ -37,6 +38,7 @@ Check for:
 Return a structured quality report."""
 
 
+@langsmith.traceable(run_type="chain")
 async def check_data_quality(period: str) -> str:
     """Run the data quality agent for a given period."""
     if not settings.nvidia_api_key:
@@ -53,7 +55,7 @@ async def check_data_quality(period: str) -> str:
 - {flight_info}
 - {geo_info}"""
 
-    llm = get_llm(max_tokens=2048)
+    llm = get_llm()
 
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),

@@ -26,13 +26,12 @@ class TradeDataWorkflow:
             fetch_and_store_trade,
             params,
             start_to_close_timeout=timedelta(minutes=30),
-            heartbeat_timeout=timedelta(minutes=2),
         )
 
 
 @workflow.defn
 class TravelDataWorkflow:
-    """Fetch flight routes from airline route dataset."""
+    """Fetch flight routes from OpenFlights."""
 
     @workflow.run
     async def run(self, params: PipelineParams) -> int:
@@ -97,8 +96,7 @@ class MainRefreshWorkflow:
         results["narratives"] = await workflow.execute_activity(
             generate_narratives,
             params,
-            start_to_close_timeout=timedelta(minutes=10),
-            heartbeat_timeout=timedelta(minutes=2),
+            start_to_close_timeout=timedelta(minutes=60),
         )
 
         return results

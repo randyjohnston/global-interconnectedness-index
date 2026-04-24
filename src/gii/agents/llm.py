@@ -21,9 +21,10 @@ def get_llm(**kwargs) -> ChatNVIDIA:
     defaults = {
         "model": settings.llm_model,
         "api_key": settings.nvidia_api_key,
-        "temperature": 1,
+        "temperature": 0.6,
         "top_p": 0.95,
-        "max_tokens": 8192,
+        "max_tokens": 32768,
+        "max_retries": 3
     }
     defaults.update(kwargs)
     return ChatNVIDIA(**defaults)
