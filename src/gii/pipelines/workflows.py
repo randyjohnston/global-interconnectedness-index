@@ -97,7 +97,8 @@ class MainRefreshWorkflow:
         results["narratives"] = await workflow.execute_activity(
             generate_narratives,
             params,
-            start_to_close_timeout=timedelta(minutes=90),
+            start_to_close_timeout=timedelta(minutes=10),
+            heartbeat_timeout=timedelta(minutes=2),
         )
 
         return results

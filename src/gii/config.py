@@ -6,7 +6,6 @@ class Settings(BaseSettings):
 
     # Supabase Postgres
     database_url: str = "postgresql+psycopg://postgres.wlkioilaxtygtqvdgdjh@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
-    database_search_path: str = "gii, public"  # Schema search path
 
     # Temporal
     temporal_host: str = "localhost:7233"

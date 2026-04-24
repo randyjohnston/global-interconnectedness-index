@@ -2,11 +2,18 @@
 
 import asyncio
 import logging
+import os
+
+from gii.config import settings
+
+if settings.langsmith_api_key and settings.langsmith_tracing == "true":
+    os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
+    os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+    os.environ["LANGSMITH_TRACING"] = settings.langsmith_tracing
 
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from gii.config import settings
 from gii.pipelines.activities import (
     compute_and_store_index,
     fetch_and_store_flights,

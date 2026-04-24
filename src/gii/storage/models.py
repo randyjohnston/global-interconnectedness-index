@@ -104,6 +104,7 @@ class IndexSnapshotRow(Base):
     geopolitics_normalized: Mapped[float | None] = mapped_column(Float, nullable=True)
     geopolitics_avg_goldstein: Mapped[float | None] = mapped_column(Float, nullable=True)
     geopolitics_cooperative_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geopolitics_event_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     composite_score: Mapped[float] = mapped_column(Float, default=0.0)
     coverage: Mapped[str] = mapped_column(String(50), default="")  # comma-separated
     computed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

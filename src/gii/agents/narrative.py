@@ -9,6 +9,7 @@ All runs are traced in LangSmith when configured.
 
 import logging
 
+import httpx
 from deepagents import create_deep_agent
 
 from gii.agents.llm import get_llm
@@ -49,6 +50,18 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
         logger.warning("NVIDIA API key not configured, skipping narratives")
         return 0
 
+    # Verify NVIDIA API is reachable before processing pairs
+    try:
+        resp = httpx.get(
+            "https://integrate.api.nvidia.com/v1/models",
+            headers={"Authorization": f"Bearer {settings.nvidia_api_key}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.error(f"NVIDIA API not reachable, skipping narratives: {e}")
+        return 0
+
     session = get_session()
     repo = Repository(session)
     snapshots = repo.get_snapshots(period)
@@ -84,8 +97,17 @@ async def generate_period_narratives(period: str, top_n: int = 10) -> int:
                 ],
             })
 
-            last_message = result["messages"][-1]
-            narrative = last_message.content if isinstance(last_message.content, str) else str(last_message.content)
+            # Walk backwards to find the last AI message with actual text (not a tool call)
+            narrative = ""
+            for msg in reversed(result["messages"]):
+                if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content.strip():
+                    if not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                        narrative = msg.content
+                        break
+
+            if not narrative:
+                logger.warning(f"Narrative empty for {country_a}-{country_b}, skipping save")
+                continue
 
             repo.save_narrative(country_a, country_b, period, narrative)
             count += 1
