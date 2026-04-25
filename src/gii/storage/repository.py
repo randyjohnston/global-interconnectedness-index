@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -107,6 +107,12 @@ class Repository:
             set_={k: v for k, v in kwargs.items() if k not in ("country_a", "country_b", "period")},
         )
         self.session.execute(stmt)
+
+    def get_latest_period(self) -> str | None:
+        """Return the most recent period that has snapshot data, or None."""
+        return self.session.scalar(
+            select(func.max(IndexSnapshotRow.period))
+        )
 
     def get_snapshots(self, period: str) -> list[IndexSnapshotRow]:
         return list(self.session.scalars(

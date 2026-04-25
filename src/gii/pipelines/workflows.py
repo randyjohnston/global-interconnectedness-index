@@ -6,6 +6,7 @@ from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
     from gii.pipelines.activities import (
+        MultiPeriodPipelineParams,
         PipelineParams,
         compute_and_store_index,
         fetch_and_store_flights,
@@ -100,3 +101,57 @@ class MainRefreshWorkflow:
         )
 
         return results
+
+
+@workflow.defn
+class MultiPeriodRefreshWorkflow:
+    """Process multiple years sequentially: data + quality + index for each year,
+    then narratives only for the final year."""
+
+    @workflow.run
+    async def run(self, params: MultiPeriodPipelineParams) -> dict:
+        all_results = {}
+
+        for year in range(params.start_year, params.end_year + 1):
+            year_params = PipelineParams(year=year, period=str(year))
+            year_key = str(year)
+            all_results[year_key] = {}
+
+            # Phase 1: Ingest all data sources in parallel
+            trade_handle = await workflow.start_child_workflow(
+                TradeDataWorkflow.run, year_params, id=f"trade-{year}",
+            )
+            travel_handle = await workflow.start_child_workflow(
+                TravelDataWorkflow.run, year_params, id=f"travel-{year}",
+            )
+            geo_handle = await workflow.start_child_workflow(
+                GeopoliticsDataWorkflow.run, year_params, id=f"geo-{year}",
+            )
+
+            all_results[year_key]["trade"] = await trade_handle
+            all_results[year_key]["travel"] = await travel_handle
+            all_results[year_key]["geopolitics"] = await geo_handle
+
+            # Phase 2: Quality check
+            all_results[year_key]["quality"] = await workflow.execute_activity(
+                run_quality_check,
+                year_params,
+                start_to_close_timeout=timedelta(minutes=15),
+            )
+
+            # Phase 3: Compute composite index
+            all_results[year_key]["index_count"] = await workflow.execute_activity(
+                compute_and_store_index,
+                year_params,
+                start_to_close_timeout=timedelta(minutes=10),
+            )
+
+        # Phase 4: Generate narratives only for the final year
+        final_params = PipelineParams(year=params.end_year, period=str(params.end_year))
+        all_results["narratives"] = await workflow.execute_activity(
+            generate_narratives,
+            final_params,
+            start_to_close_timeout=timedelta(minutes=60),
+        )
+
+        return all_results

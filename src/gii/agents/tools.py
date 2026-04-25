@@ -12,7 +12,7 @@ def query_recent_ingestion(source: str, period: str) -> str:
 
     Args:
         source: One of "trade", "flights", "geopolitics"
-        period: The time period to check, e.g. "2025"
+        period: The time period to check, e.g. a year like "2024" or a quarter like "2024-Q1"
     """
     session = get_session()
     repo = Repository(session)
@@ -85,7 +85,7 @@ def get_pillar_breakdown(country_a: str, country_b: str, period: str) -> str:
     Args:
         country_a: ISO3 code of first country
         country_b: ISO3 code of second country
-        period: Time period, e.g. "2025"
+        period: Time period, e.g. a year like "2024" or a quarter like "2024-Q1"
     """
     session = get_session()
     repo = Repository(session)

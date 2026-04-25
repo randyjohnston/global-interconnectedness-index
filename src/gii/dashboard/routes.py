@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
@@ -19,8 +20,10 @@ router = APIRouter(tags=["dashboard"])
 
 
 @router.get("/", response_class=HTMLResponse)
-def dashboard_home(request: Request, period: str = Query("2025"), session: Session = Depends(get_db)):
+def dashboard_home(request: Request, period: str | None = Query(None), session: Session = Depends(get_db)):
     repo = get_repo(session)
+    if period is None:
+        period = repo.get_latest_period() or str(date.today().year)
     snapshots = repo.get_snapshots(period)
     countries = repo.list_countries()
 
@@ -37,8 +40,10 @@ def dashboard_home(request: Request, period: str = Query("2025"), session: Sessi
 
 
 @router.get("/rankings", response_class=HTMLResponse)
-def rankings_page(request: Request, period: str = Query("2025"), session: Session = Depends(get_db)):
+def rankings_page(request: Request, period: str | None = Query(None), session: Session = Depends(get_db)):
     repo = get_repo(session)
+    if period is None:
+        period = repo.get_latest_period() or str(date.today().year)
     snapshots = repo.get_snapshots(period)
 
     # Aggregate by country

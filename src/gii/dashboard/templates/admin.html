@@ -19,28 +19,78 @@
     </div>
 
     <!-- Trigger Pipeline -->
-    <div class="bg-white rounded-lg shadow p-6" x-data="{ year: 2025, period: '2025', loading: false, result: '' }">
+    <div class="bg-white rounded-lg shadow p-6" x-data="{
+        period: String(new Date().getFullYear()),
+        yearCount: 1,
+        loading: false,
+        result: '',
+        get startYear() {
+            const y = parseInt(this.period);
+            return isNaN(y) ? null : y - this.yearCount + 1;
+        },
+        get isMulti() { return this.yearCount > 1 },
+        get isValidPeriod() {
+            return /^\d{4}(-Q[1-4])?$/.test(this.period);
+        },
+        get canSubmit() {
+            if (!this.isValidPeriod) return false;
+            if (this.isMulti && this.startYear === null) return false;
+            return true;
+        },
+        trigger() {
+            this.loading = true;
+            this.result = '';
+            let url, body;
+            if (this.isMulti) {
+                url = '/api/pipelines/trigger-multi';
+                body = { start_year: this.startYear, end_year: parseInt(this.period) };
+            } else {
+                url = '/api/pipelines/trigger';
+                body = { period: this.period };
+            }
+            fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            }).then(r => r.json()).then(d => { this.result = d.message || d.status; this.loading = false; }).catch(e => { this.result = 'Error: ' + e; this.loading = false; });
+        }
+    }">
         <h2 class="text-lg font-semibold mb-4">Trigger Pipeline</h2>
-        <div class="space-y-3">
-            <div>
-                <label class="block text-sm text-gray-600 mb-1">Year</label>
-                <input type="number" x-model="year" class="border rounded px-3 py-2 w-full" min="2000" max="2030">
-            </div>
+        <div class="space-y-4">
             <div>
                 <label class="block text-sm text-gray-600 mb-1">Period</label>
                 <input type="text" x-model="period" class="border rounded px-3 py-2 w-full" placeholder="e.g. 2025 or 2025-Q1">
             </div>
+
+            <div>
+                <label class="block text-sm text-gray-600 mb-2">
+                    Years to load: <span class="font-semibold" x-text="yearCount"></span>
+                </label>
+                <input type="range" min="1" max="5" x-model.number="yearCount" class="w-full accent-indigo-600">
+                <div class="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+                </div>
+            </div>
+
+            <!-- Year pills (multi-year only) -->
+            <div x-show="isMulti && startYear !== null" class="flex flex-wrap gap-2">
+                <template x-for="y in yearCount" :key="y">
+                    <span
+                        class="px-2 py-1 rounded text-xs font-medium"
+                        :class="y === yearCount ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'bg-gray-100 text-gray-600'"
+                        x-text="(startYear + y - 1) + (y === yearCount ? ' (narratives)' : '')"
+                    ></span>
+                </template>
+            </div>
+
+            <p x-show="isMulti" class="text-xs text-gray-500">Multi-year: runs data + quality + index for each year, narratives for the final year only.</p>
+
             <button
-                @click="loading = true; result = '';
-                    fetch('/api/pipelines/trigger', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({year: parseInt(year), period: period})
-                    }).then(r => r.json()).then(d => { result = d.message || d.status; loading = false; }).catch(e => { result = 'Error: ' + e; loading = false; })"
+                @click="trigger()"
                 class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 w-full"
-                :disabled="loading"
+                :disabled="loading || !canSubmit"
             >
-                <span x-show="!loading">Trigger Refresh</span>
+                <span x-show="!loading" x-text="isMulti ? 'Trigger Multi-Year Refresh' : 'Trigger Refresh'"></span>
                 <span x-show="loading">Running...</span>
             </button>
             <div x-show="result" class="text-sm p-3 bg-gray-50 rounded" x-text="result"></div>

@@ -19,6 +19,12 @@ class PipelineParams:
     period: str  # e.g. "2025" or "2025-Q1"
 
 
+@dataclass
+class MultiPeriodPipelineParams:
+    start_year: int
+    end_year: int  # inclusive, max 5 year span
+
+
 # --- Trade Activities ---
 
 

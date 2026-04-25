@@ -25,6 +25,7 @@ from gii.pipelines.activities import (
 from gii.pipelines.workflows import (
     GeopoliticsDataWorkflow,
     MainRefreshWorkflow,
+    MultiPeriodRefreshWorkflow,
     TradeDataWorkflow,
     TravelDataWorkflow,
 )
@@ -42,6 +43,7 @@ async def main():
         task_queue=settings.temporal_task_queue,
         workflows=[
             MainRefreshWorkflow,
+            MultiPeriodRefreshWorkflow,
             TradeDataWorkflow,
             TravelDataWorkflow,
             GeopoliticsDataWorkflow,

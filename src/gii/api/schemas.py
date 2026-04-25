@@ -35,8 +35,12 @@ class RankingEntry(BaseModel):
 
 
 class PipelineTriggerRequest(BaseModel):
-    year: int
-    period: str | None = None
+    period: str  # e.g. "2025" or "2025-Q1"
+
+
+class MultiPeriodTriggerRequest(BaseModel):
+    start_year: int
+    end_year: int
 
 
 class PipelineStatusResponse(BaseModel):
