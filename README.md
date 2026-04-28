@@ -156,7 +156,7 @@ There are four ways to trigger workflows:
 
 #### 1. Dashboard UI
 
-Navigate to http://localhost:8000/admin/pipelines, enter the year/period, and click **Trigger Refresh**.
+Navigate to http://localhost:8000/admin/pipelines, enter the period (e.g. `2024`), and click **Trigger Refresh**.
 
 #### 2. API endpoint
 
@@ -169,16 +169,18 @@ curl -X POST http://localhost:8000/api/pipelines/trigger \
 #### 3. Backfill script (one-time historical load)
 
 ```bash
-# Default: backfill year 2024
+# Default: backfill period 2024
 uv run python scripts/run_backfill.py
 
-# Specific year
+# Specific period
 uv run python scripts/run_backfill.py 2023
 ```
 
 This blocks until the full pipeline completes and prints the results.
 
 #### 4. Temporal CLI (direct workflow control)
+
+> **Note:** The Temporal CLI sends input directly to the internal `PipelineParams` dataclass which requires both `year` (int) and `period` (string). The HTTP API only requires `period` and derives the year automatically.
 
 ```bash
 # Start a workflow
