@@ -4,6 +4,7 @@ import logging
 import os
 import re
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from tenacity import (
     retry,
@@ -29,7 +30,7 @@ _retry_decorator = retry(
     wait=wait_exponential_jitter(initial=2, max=30),
     stop=stop_after_attempt(5),
     before_sleep=lambda rs: logger.warning(
-        f"NVIDIA API retryable error (attempt {rs.attempt_number}), retrying: {rs.outcome.exception()}"
+        f"LLM API retryable error (attempt {rs.attempt_number}), retrying: {rs.outcome.exception()}"
     ),
 )
 
@@ -52,9 +53,8 @@ def configure_langsmith() -> None:
         os.environ["LANGSMITH_TRACING"] = str(settings.langsmith_tracing)
 
 
-def get_llm(**kwargs) -> RetryingChatNVIDIA:
-    """Build a ChatNVIDIA instance with default settings and retry logic."""
-    configure_langsmith()
+def _build_nvidia(**kwargs) -> RetryingChatNVIDIA:
+    kwargs.pop("streaming", None)  # NVIDIA always streams; ignore flag
     defaults = {
         "model": settings.llm_model,
         "api_key": settings.nvidia_api_key,
@@ -64,3 +64,42 @@ def get_llm(**kwargs) -> RetryingChatNVIDIA:
     }
     defaults.update(kwargs)
     return RetryingChatNVIDIA(**defaults)
+
+
+def _build_bedrock(**kwargs) -> BaseChatModel:
+    from langchain_aws import ChatBedrockConverse
+
+    # Map streaming=True/False to ChatBedrockConverse's disable_streaming flag
+    streaming = kwargs.pop("streaming", False)
+
+    defaults = {
+        "model_id": settings.bedrock_model_id,
+        "region_name": settings.bedrock_region,
+        "temperature": 0.6,
+        "max_tokens": 32768,
+        "disable_streaming": not streaming,
+    }
+    defaults.update(kwargs)
+    return ChatBedrockConverse(**defaults)
+
+
+def is_llm_configured() -> bool:
+    """Return True if the active LLM provider has credentials configured."""
+    provider = settings.llm_provider.lower()
+    if provider == "bedrock":
+        # Bedrock uses IAM roles/env — always considered configured
+        return True
+    return bool(settings.nvidia_api_key)
+
+
+def get_llm(**kwargs) -> BaseChatModel:
+    """Build the configured LLM.
+
+    Set GII_LLM_PROVIDER=nvidia (default) or GII_LLM_PROVIDER=bedrock.
+    """
+    configure_langsmith()
+
+    provider = settings.llm_provider.lower()
+    if provider == "bedrock":
+        return _build_bedrock(**kwargs)
+    return _build_nvidia(**kwargs)

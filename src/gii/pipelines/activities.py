@@ -186,7 +186,9 @@ async def generate_narratives(params: PipelineParams) -> int:
     """Run LangChain narrative agent for top movers."""
     try:
         from gii.agents.narrative import generate_period_narratives
-        count = await generate_period_narratives(params.period)
+        info = activity.info()
+        thread_id = info.workflow_id
+        count = await generate_period_narratives(params.period, thread_id=thread_id)
         return count
     except Exception as e:
         logger.error(f"Narrative generation failed: {e}")

@@ -21,9 +21,16 @@ class Settings(BaseSettings):
     gcp_credentials_path: str = ""
     gdelt_dataset: str = "gdelt-bq.gdeltv2"
 
-    # NVIDIA AI
-    nvidia_api_key: str = ""
+    # LLM provider: "nvidia" or "bedrock"
+    llm_provider: str = "nvidia"
     llm_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+    # NVIDIA NIM
+    nvidia_api_key: str = ""
+
+    # AWS Bedrock
+    bedrock_model_id: str = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+    bedrock_region: str = "us-east-1"
 
     # LangSmith observability
     langsmith_api_key: str = ""

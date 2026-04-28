@@ -9,13 +9,10 @@ All runs are traced in LangSmith when configured.
 
 import logging
 
-import httpx
-import langsmith
 from deepagents import create_deep_agent
 
-from gii.agents.llm import get_llm
+from gii.agents.llm import get_llm, is_llm_configured
 from gii.agents.tools import get_index_delta, get_pillar_breakdown
-from gii.config import settings
 from gii.storage.database import get_session
 from gii.storage.repository import Repository
 
@@ -32,12 +29,12 @@ Important formatting rules:
 - On first mention, refer to each country by its full name followed by its ISO3 code in parentheses, e.g. "United States (USA)" or "China (CHN)". After the first mention, you may use either the full name or code.
 - Use markdown formatting (bold, bullet points, etc.) for readability.
 - Be specific about numbers.
-- After gathering data with tools, write your final narrative as a plain text response (no tool calls)."""
+- After gathering data with tools, write your final narrative as a plain text response (no tool calls).
+- Exclude and preamble before the narrative, e.g. "Here's what I found:" or "Based on the data:". Just write the narrative directly."""
 
-
-def build_agent():
+def build_agent(streaming: bool = False):
     """Build the narrative deep agent."""
-    llm = get_llm()
+    llm = get_llm(streaming=streaming)
     return create_deep_agent(
         tools=[get_index_delta, get_pillar_breakdown],
         instructions=INSTRUCTIONS,
@@ -45,23 +42,14 @@ def build_agent():
     )
 
 
-@langsmith.traceable(name="generate_narratives", run_type="chain")
-async def generate_period_narratives(period: str, top_n: int = 10, source: str = "temporal") -> int:
-    """Generate narratives for the top movers in a period."""
-    if not settings.nvidia_api_key:
-        logger.warning("NVIDIA API key not configured, skipping narratives")
-        return 0
+async def generate_period_narratives(period: str, top_n: int = 10, source: str = "temporal", thread_id: str | None = None) -> int:
+    """Generate narratives for the top movers in a period.
 
-    # Verify NVIDIA API is reachable before processing pairs
-    try:
-        resp = httpx.get(
-            "https://integrate.api.nvidia.com/v1/models",
-            headers={"Authorization": f"Bearer {settings.nvidia_api_key}"},
-            timeout=10,
-        )
-        resp.raise_for_status()
-    except httpx.HTTPError as e:
-        logger.error(f"NVIDIA API not reachable, skipping narratives: {e}")
+    Each country-pair narrative is traced as a separate LangSmith run,
+    grouped under a shared thread (the Temporal workflow ID when available).
+    """
+    if not is_llm_configured():
+        logger.warning("LLM provider not configured, skipping narratives")
         return 0
 
     session = get_session()
@@ -86,6 +74,10 @@ async def generate_period_narratives(period: str, top_n: int = 10, source: str =
         name_b = countries.get(country_b, country_b)
 
         try:
+            metadata = {"country_a": country_a, "country_b": country_b, "period": period}
+            if thread_id:
+                metadata["thread_id"] = thread_id
+
             result = await agent.ainvoke(
                 {
                     "messages": [
@@ -101,8 +93,9 @@ async def generate_period_narratives(period: str, top_n: int = 10, source: str =
                 },
                 config={
                     "run_name": "generate_narrative",
-                    "tags": [source],
-                    "metadata": {"country_a": country_a, "country_b": country_b, "period": period},
+                    "tags": [source, period],
+                    "metadata": metadata,
+                    "callbacks": [],  # isolate from parent trace context
                 },
             )
 
@@ -111,10 +104,21 @@ async def generate_period_narratives(period: str, top_n: int = 10, source: str =
             for msg in reversed(result["messages"]):
                 if msg.type != "ai":
                     continue
-                if isinstance(msg.content, str) and msg.content.strip():
-                    if not (hasattr(msg, "tool_calls") and msg.tool_calls):
-                        narrative = msg.content
-                        break
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    continue
+                # Extract text: str for NVIDIA, list of content blocks for Bedrock
+                if isinstance(msg.content, str):
+                    text = msg.content
+                elif isinstance(msg.content, list):
+                    text = "".join(
+                        block.get("text", "") for block in msg.content
+                        if isinstance(block, dict) and block.get("type") == "text"
+                    )
+                else:
+                    continue
+                if text.strip():
+                    narrative = text
+                    break
 
             if not narrative:
                 logger.warning(f"Narrative empty for {country_a}-{country_b}, skipping save")

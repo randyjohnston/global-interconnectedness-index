@@ -116,7 +116,6 @@ def score_card_partial(request: Request, country_a: str, country_b: str, period:
 async def stream_narrative(country_a: str, country_b: str, period: str):
     """SSE endpoint — streams narrative tokens from the deep agent."""
     from gii.agents.narrative import build_agent
-    from gii.config import settings
     from gii.models.country import CountryPair
     from gii.storage.database import get_session
     from gii.storage.repository import Repository
@@ -124,8 +123,9 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
     pair = CountryPair.create(country_a, country_b)
 
     async def event_generator():
-        if not settings.nvidia_api_key:
-            yield {"event": "error", "data": "NVIDIA API key not configured"}
+        from gii.agents.llm import is_llm_configured
+        if not is_llm_configured():
+            yield {"event": "error", "data": "LLM provider not configured"}
             return
 
         session = get_session()
@@ -134,11 +134,12 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
         name_a = countries.get(pair.country_a, pair.country_a)
         name_b = countries.get(pair.country_b, pair.country_b)
 
-        agent = build_agent()
+        agent = build_agent(streaming=True)
         full_text = ""
-        # Track each LLM call: buffer text, flush only if no tool calls
+        # Track turns: buffer text per turn, only stream from post-tool turns
         current_call_text = ""
         current_call_has_tools = False
+        has_used_tools = False  # True once any turn has made tool calls
 
         try:
             yield {"event": "status", "data": json.dumps({"text": "Agent gathering data..."})}
@@ -166,7 +167,6 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
                 kind = event.get("event")
 
                 if kind == "on_chat_model_start":
-                    # New LLM call starting — reset per-call tracking
                     current_call_text = ""
                     current_call_has_tools = False
 
@@ -174,23 +174,31 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
                     chunk = event.get("data", {}).get("chunk")
                     if not chunk:
                         continue
-                    # If this chunk contains tool calls, mark the call as tool-calling
                     if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
                         current_call_has_tools = True
-                    # Buffer text content
-                    if hasattr(chunk, "content") and isinstance(chunk.content, str) and chunk.content:
-                        current_call_text += chunk.content
-                        # Only stream if this call hasn't made tool calls
-                        if not current_call_has_tools:
-                            full_text += chunk.content
-                            yield {"event": "token", "data": json.dumps({"token": chunk.content})}
+                    # Extract text from content (str for NVIDIA, list of blocks for Bedrock)
+                    text = ""
+                    if isinstance(chunk.content, str):
+                        text = chunk.content
+                    elif isinstance(chunk.content, list):
+                        for block in chunk.content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                text += block.get("text", "")
+                    if text:
+                        current_call_text += text
+                        # Stream live only if tools have already been used (this is the final narrative turn)
+                        if has_used_tools and not current_call_has_tools:
+                            full_text += text
+                            yield {"event": "token", "data": json.dumps({"token": text})}
 
                 elif kind == "on_chat_model_end":
-                    if current_call_has_tools and current_call_text:
-                        # This was a tool-calling round that also had text — don't include
-                        pass
-                    elif current_call_has_tools:
+                    if current_call_has_tools:
+                        has_used_tools = True
                         yield {"event": "status", "data": json.dumps({"text": "Writing narrative..."})}
+                    elif not has_used_tools and current_call_text:
+                        # Edge case: model wrote narrative without using tools
+                        full_text += current_call_text
+                        yield {"event": "token", "data": json.dumps({"token": current_call_text})}
 
             # Save completed narrative to DB
             if full_text.strip():

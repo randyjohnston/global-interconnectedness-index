@@ -98,6 +98,42 @@ If neither of the above is set, the client uses [Application Default Credentials
 
 ---
 
+## LLM Provider Configuration
+
+The quality-check and narrative agents require an LLM. Two providers are supported, controlled by `GII_LLM_PROVIDER`:
+
+### NVIDIA NIM (default)
+
+```bash
+GII_LLM_PROVIDER=nvidia
+GII_NVIDIA_API_KEY=nvapi-...
+GII_LLM_MODEL=nvidia/llama-3.3-nemotron-super-49b-v1.5
+```
+
+Get an API key at https://build.nvidia.com. The integration automatically retries on 429/502/503 with exponential backoff (up to 5 attempts).
+
+### AWS Bedrock
+
+```bash
+GII_LLM_PROVIDER=bedrock
+GII_BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
+GII_BEDROCK_REGION=us-east-1
+```
+
+Bedrock uses the standard AWS credential chain — no API key needed in `.env`. Ensure your environment has credentials via one of:
+
+- `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` env vars
+- `~/.aws/credentials` profile
+- IAM role (ECS task role, EC2 instance profile, etc.)
+
+The IAM principal needs the `bedrock:InvokeModel` permission for the configured model.
+
+### Switching providers
+
+Both providers expose the same interface (`bind_tools`, streaming, structured output). To switch, change `GII_LLM_PROVIDER` and restart the worker and web app. No code changes needed.
+
+---
+
 ## Temporal Workflows
 
 ### Architecture
@@ -127,7 +163,7 @@ Navigate to http://localhost:8000/admin/pipelines, enter the year/period, and cl
 ```bash
 curl -X POST http://localhost:8000/api/pipelines/trigger \
   -H "Content-Type: application/json" \
-  -d '{"year": 2024, "period": "2024"}'
+  -d '{"period": "2024"}'
 ```
 
 #### 3. Backfill script (one-time historical load)
@@ -226,7 +262,7 @@ src/gii/
   data_sources/        # API clients (Comtrade, OpenFlights, UNWTO, GDELT)
   pipelines/           # Temporal workflows, activities, worker
   computation/         # Normalization + composite index math
-  agents/              # LangChain quality + narrative agents (NVIDIA API)
+  agents/              # LangChain quality + narrative agents (NVIDIA NIM or AWS Bedrock)
   api/                 # FastAPI routes
   dashboard/           # Jinja2 + HTMX templates
   storage/             # SQLAlchemy ORM + repository

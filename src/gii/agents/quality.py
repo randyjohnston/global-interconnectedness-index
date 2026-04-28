@@ -6,9 +6,8 @@ import langsmith
 from langchain_core.messages import SystemMessage, HumanMessage
 from pydantic import BaseModel
 
-from gii.agents.llm import get_llm
+from gii.agents.llm import get_llm, is_llm_configured
 from gii.agents.tools import query_recent_ingestion
-from gii.config import settings
 from gii.storage.database import get_session
 from gii.storage.models import QualityReportRow
 
@@ -41,9 +40,9 @@ Return a structured quality report."""
 @langsmith.traceable(run_type="chain")
 async def check_data_quality(period: str) -> str:
     """Run the data quality agent for a given period."""
-    if not settings.nvidia_api_key:
-        logger.warning("NVIDIA API key not configured, skipping quality check")
-        return "Skipped: no API key"
+    if not is_llm_configured():
+        logger.warning("LLM provider not configured, skipping quality check")
+        return "Skipped: no LLM configured"
 
     # Gather all source data upfront
     trade_info = query_recent_ingestion.invoke({"source": "trade", "period": period})

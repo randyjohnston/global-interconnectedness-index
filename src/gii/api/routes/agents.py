@@ -12,25 +12,18 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 @router.post("/analyze", response_model=NarrativeResponse)
 async def analyze_pair(req: AnalyzeRequest):
     """On-demand narrative analysis for a country pair."""
-    from langchain_nvidia_ai_endpoints import ChatNVIDIA
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    from gii.agents.llm import get_llm, is_llm_configured
     from gii.agents.tools import get_index_delta, get_pillar_breakdown
-    from gii.config import settings
 
-    if not settings.nvidia_api_key:
+    if not is_llm_configured():
         return NarrativeResponse(
             country_a=req.country_a, country_b=req.country_b,
-            period=req.period, narrative="API key not configured",
+            period=req.period, narrative="LLM provider not configured",
         )
 
-    llm = ChatNVIDIA(
-        model=settings.llm_model,
-        api_key=settings.nvidia_api_key,
-        temperature=1,
-        top_p=0.95,
-        max_tokens=1024,
-    )
+    llm = get_llm(temperature=1, max_tokens=1024)
     llm_with_tools = llm.bind_tools([get_index_delta, get_pillar_breakdown])
 
     messages = [
