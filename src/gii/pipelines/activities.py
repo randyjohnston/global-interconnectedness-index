@@ -52,9 +52,11 @@ async def fetch_and_store_trade(params: PipelineParams) -> int:
             trades = await fetch_bilateral_trade(reporter, partners, params.year)
             for trade in trades:
                 repo.upsert_trade(trade)
+            repo.commit()
             total_stored += len(trades)
             logger.info(f"Comtrade: {reporter} ({i+1}/{len(iso3_list)}) -> {len(trades)} flows")
         except Exception as e:
+            session.rollback()
             errors.append(reporter)
             logger.error(f"Comtrade fetch failed for {reporter} ({i+1}/{len(iso3_list)}): {e}")
             activity.heartbeat(f"error:{reporter}")
@@ -66,7 +68,6 @@ async def fetch_and_store_trade(params: PipelineParams) -> int:
     if errors:
         logger.warning(f"Comtrade: {len(errors)} reporters failed: {errors}")
 
-    repo.commit()
     session.close()
     logger.info(f"Trade: stored {total_stored} bilateral records for {params.period}")
     return total_stored
