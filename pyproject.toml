@@ -36,6 +36,8 @@ dependencies = [
     "deepagents>=0.0.5",
     "sse-starlette>=3.3.4",
     "langchain-aws>=0.2.35",
+    "langgraph-cli>=0.4.24",
+    "tavily-python>=0.5",
 ]
 
 [project.scripts]

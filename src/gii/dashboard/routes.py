@@ -53,7 +53,8 @@ def rankings_page(request: Request, period: str | None = Query(None), session: S
         country_scores.setdefault(s.country_b, []).append(s.composite_score)
 
     rankings = [
-        {"country": c, "avg_score": round(sum(scores) / len(scores), 2), "pair_count": len(scores)}
+        {"country": c, "avg_score": round(
+            sum(scores) / len(scores), 2), "pair_count": len(scores)}
         for c, scores in country_scores.items()
     ]
     rankings.sort(key=lambda x: x["avg_score"], reverse=True)
@@ -97,7 +98,8 @@ def score_card_partial(request: Request, country_a: str, country_b: str, period:
 
     from gii.models.country import CountryPair
     pair = CountryPair.create(country_a, country_b)
-    snapshot = next((s for s in snapshots if s.country_a == pair.country_a and s.country_b == pair.country_b), None)
+    snapshot = next((s for s in snapshots if s.country_a ==
+                    pair.country_a and s.country_b == pair.country_b), None)
     narrative = repo.get_narrative(country_a, country_b, period)
     countries = {c.iso3: c.name for c in repo.list_countries()}
 
@@ -136,13 +138,12 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
 
         agent = build_agent(streaming=True)
         full_text = ""
-        # Track turns: buffer text per turn, only stream from post-tool turns
-        current_call_text = ""
-        current_call_has_tools = False
-        has_used_tools = False  # True once any turn has made tool calls
+        task_depth = 0        # >0 means we're inside a subagent task call
+        task_count = 0        # how many task tool calls have completed
+        supervisor_has_tools = False  # True once supervisor has made tool calls
 
         try:
-            yield {"event": "status", "data": json.dumps({"text": "Agent gathering data..."})}
+            yield {"event": "status", "data": json.dumps({"text": "Dispatching domain analysts..."})}
 
             async for event in agent.astream_events(
                 {
@@ -166,17 +167,32 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
             ):
                 kind = event.get("event")
 
-                if kind == "on_chat_model_start":
-                    current_call_text = ""
-                    current_call_has_tools = False
+                # Track entry/exit of task tool to know when we're in a subagent
+                if kind == "on_tool_start" and event.get("name") == "task":
+                    task_depth += 1
+                    analysts = {1: "Trade", 2: "Travel", 3: "Geopolitics"}
+                    label = analysts.get(task_depth, f"Analyst {task_depth}")
+                    yield {"event": "status", "data": json.dumps({"text": f"{label} analyst working..."})}
+                    continue
+                elif kind == "on_tool_end" and event.get("name") == "task":
+                    task_depth -= 1
+                    task_count += 1
+                    if task_count >= 3 and task_depth == 0:
+                        yield {"event": "status", "data": json.dumps({"text": "Synthesising narrative..."})}
+                    continue
 
-                elif kind == "on_chat_model_stream":
+                # Skip all LLM events from subagents
+                if task_depth > 0:
+                    continue
+
+                if kind == "on_chat_model_stream":
                     chunk = event.get("data", {}).get("chunk")
                     if not chunk:
                         continue
                     if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
-                        current_call_has_tools = True
-                    # Extract text from content (str for NVIDIA, list of blocks for Bedrock)
+                        supervisor_has_tools = True
+                        continue
+                    # Extract text from content
                     text = ""
                     if isinstance(chunk.content, str):
                         text = chunk.content
@@ -184,31 +200,21 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
                         for block in chunk.content:
                             if isinstance(block, dict) and block.get("type") == "text":
                                 text += block.get("text", "")
-                    if text:
-                        current_call_text += text
-                        # Stream live only if tools have already been used (this is the final narrative turn)
-                        if has_used_tools and not current_call_has_tools:
-                            full_text += text
-                            yield {"event": "token", "data": json.dumps({"token": text})}
-
-                elif kind == "on_chat_model_end":
-                    if current_call_has_tools:
-                        has_used_tools = True
-                        yield {"event": "status", "data": json.dumps({"text": "Writing narrative..."})}
-                    elif not has_used_tools and current_call_text:
-                        # Edge case: model wrote narrative without using tools
-                        full_text += current_call_text
-                        yield {"event": "token", "data": json.dumps({"token": current_call_text})}
+                    if text and supervisor_has_tools:
+                        full_text += text
+                        yield {"event": "token", "data": json.dumps({"token": text})}
 
             # Save completed narrative to DB
             if full_text.strip():
-                repo.save_narrative(pair.country_a, pair.country_b, period, full_text)
+                repo.save_narrative(
+                    pair.country_a, pair.country_b, period, full_text)
                 repo.commit()
 
             yield {"event": "done", "data": json.dumps({"success": True})}
 
         except Exception as e:
-            logger.error(f"Narrative stream failed for {pair.country_a}-{pair.country_b}: {e}")
+            logger.error(
+                f"Narrative stream failed for {pair.country_a}-{pair.country_b}: {e}")
             yield {"event": "error", "data": json.dumps({"error": str(e)})}
         finally:
             session.close()

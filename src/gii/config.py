@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     weight_travel: float = 0.30
     weight_geopolitics: float = 0.30
 
+    # Tavily web search
+    tavily_api_key: str = ""
+    tavily_trade_domains: str = "tradingeconomics.com,wto.org,reuters.com,bloomberg.com,economist.com,ft.com"
+    tavily_travel_domains: str = "iata.org,reuters.com,icao.int,skift.com,travelpulse.com,apnews.com,dw.com"
+    tavily_geopolitics_domains: str = "foreignaffairs.com,reuters.com,bbc.com,aljazeera.com,apnews.com,dw.com"
+
     # Data
     data_dir: str = "data"
 
