@@ -1,6 +1,8 @@
 # Global Interconnectedness Index (GII)
 
-Composite bilateral index scoring country-pair interconnectedness across three pillars: **trade** (UN Comtrade), **travel** (OpenFlights + UNWTO), and **geopolitics** (GDELT via BigQuery). Orchestrated by Temporal, enriched by LangChain agents, served via FastAPI + HTMX dashboard.
+Composite bilateral index scoring country-pair interconnectedness across three pillars: **trade** (UN Comtrade API v2), **travel** (airline route data via GitHub), and **geopolitics** (GDELT v2 via GCP BigQuery). Orchestrated by Temporal, enriched by LangChain Deep Agents with domain-specialist subagents, served via FastAPI + HTMX dashboard.
+
+![GII Architecture](docs/architecture.png)
 
 ## Setup
 
@@ -132,6 +134,10 @@ The IAM principal needs the `bedrock:InvokeModel` permission for the configured 
 
 Both providers expose the same interface (`bind_tools`, streaming, structured output). To switch, change `GII_LLM_PROVIDER` and restart the worker and web app. No code changes needed.
 
+### Tavily Web Search (optional)
+
+The narrative subagents can search for recent news to contextualize score changes. Set `GII_TAVILY_API_KEY` in `.env` to enable this. Each subagent searches a configurable whitelist of domains relevant to its pillar (trade, travel, geopolitics). See `.env.example` for defaults.
+
 ---
 
 ## Temporal Workflows
@@ -140,15 +146,32 @@ Both providers expose the same interface (`bind_tools`, streaming, structured ou
 
 ```
 MainRefreshWorkflow (top-level orchestrator)
-  ├── TradeDataWorkflow (child)     → fetch_and_store_trade activity
-  ├── TravelDataWorkflow (child)    → fetch_and_store_flights + ingest_and_store_unwto activities
-  ├── GeopoliticsDataWorkflow (child) → fetch_and_store_gdelt activity
-  ├── run_quality_check activity    (LangChain DataQualityAgent)
+  ├── TradeDataWorkflow (child)        → fetch_and_store_trade activity
+  ├── TravelDataWorkflow (child)       → fetch_and_store_flights activity
+  ├── GeopoliticsDataWorkflow (child)  → fetch_and_store_gdelt activity
+  ├── run_quality_check activity       (LangChain Data Quality Agent)
   ├── compute_and_store_index activity
-  └── generate_narratives activity  (LangChain NarrativeAgent)
+  └── generate_narratives activity     (LangChain Deep Agent → 3 subagents)
 ```
 
 The three data-source child workflows run **in parallel**. Once all three complete, the pipeline runs quality checks, computes the composite index, and generates AI narratives — sequentially.
+
+### Narrative Generation Agent
+
+The narrative agent uses a **supervisor + subagent** architecture via LangChain Deep Agents:
+
+```
+Supervisor (synthesis + orchestration)
+  ├── trade_analyst      → query_trade_data + search_trade_news
+  ├── travel_analyst     → query_travel_data + search_travel_news
+  └── geopolitics_analyst → query_geopolitics_data + search_geopolitics_news
+```
+
+The supervisor dispatches all three domain analysts via the `task` tool. Each subagent queries its pillar's database table and optionally searches for relevant news via Tavily (with domain whitelists). The supervisor then synthesizes the three reports into a single cohesive narrative.
+
+Narratives are generated in two contexts:
+- **Batch** (Temporal pipeline): top 10 country pairs by composite score
+- **On-demand** (dashboard UI): single country pair via SSE streaming
 
 ### Running Workflows
 
@@ -247,11 +270,20 @@ temporal schedule delete --schedule-id gii-daily-refresh
 |----------|---------|---------|
 | `fetch_and_store_trade` | 30 min | Heartbeat every 2 min |
 | `fetch_and_store_flights` | 10 min | Default |
-| `ingest_and_store_unwto` | 5 min | Default |
 | `fetch_and_store_gdelt` | 15 min | Default |
 | `compute_and_store_index` | 10 min | Default |
-| `run_quality_check` | 5 min | Default |
-| `generate_narratives` | 10 min | Default |
+| `run_quality_check` | 15 min | Default |
+| `generate_narratives` | 60 min | Default |
+
+---
+
+## Data Sources
+
+| Pillar | Source | Access |
+|--------|--------|--------|
+| Trade | [UN Comtrade API v2](https://comtradeapi.un.org) | API key (free tier: 100 calls/day) |
+| Travel | Airline route data (GitHub) | Public, no auth |
+| Geopolitics | [GDELT v2](https://www.gdeltproject.org/) via BigQuery | GCP credentials |
 
 ---
 
@@ -261,11 +293,11 @@ temporal schedule delete --schedule-id gii-daily-refresh
 src/gii/
   config.py            # Pydantic Settings (GII_ env prefix)
   models/              # Pydantic domain models
-  data_sources/        # API clients (Comtrade, OpenFlights, UNWTO, GDELT)
+  data_sources/        # API clients (Comtrade, airline routes, GDELT)
   pipelines/           # Temporal workflows, activities, worker
   computation/         # Normalization + composite index math
-  agents/              # LangChain quality + narrative agents (NVIDIA NIM or AWS Bedrock)
+  agents/              # LangChain Deep Agent (supervisor + 3 subagents), quality agent
   api/                 # FastAPI routes
   dashboard/           # Jinja2 + HTMX templates
-  storage/             # SQLAlchemy ORM + repository
+  storage/             # SQLAlchemy ORM + repository (Postgres)
 ```

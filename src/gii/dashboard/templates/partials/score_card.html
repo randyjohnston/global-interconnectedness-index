@@ -27,11 +27,13 @@
 
 <div class="mt-4 pt-4 border-t border-gray-100" x-data="narrativeStream()">
     {% if narrative %}
-    <div x-show="!streaming && !streamed">
+    <!-- Existing narrative — always visible when present -->
+    <div>
         <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" id="existing-narrative"></div>
         <div class="flex items-center justify-between mt-2">
             <p class="text-xs text-gray-400">Generated {{ narrative.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
             <button
+                x-show="!streaming && !streamed && !pendingReview"
                 @click="generate()"
                 class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
             >Regenerate</button>
@@ -41,7 +43,7 @@
         </script>
     </div>
     {% else %}
-    <div x-show="!streaming && !streamed">
+    <div x-show="!streaming && !streamed && !pendingReview">
         <p class="text-sm text-gray-400 italic mb-2">No AI analysis available for this pair yet.</p>
         <button
             @click="generate()"
@@ -54,7 +56,7 @@
     {% endif %}
 
     <!-- Streaming state -->
-    <div x-show="streaming" x-cloak>
+    <div x-show="streaming" x-cloak class="mt-6 pt-4 border-t border-indigo-100">
         <div class="flex items-center gap-2 mb-2">
             <div class="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
             <span class="text-xs text-indigo-600 font-medium" x-text="statusText">Generating...</span>
@@ -62,8 +64,32 @@
         <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" x-ref="streamOutput"></div>
     </div>
 
+    <!-- HITL review state — approve or reject before saving -->
+    <div x-show="pendingReview" x-cloak class="mt-6 pt-4 border-t border-indigo-100">
+        <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" x-ref="reviewOutput"></div>
+        <p class="text-xs text-gray-400 mt-3">Generated just now</p>
+        <div class="flex items-center gap-2 mt-4">
+            <button
+                @click="submitReview('approve')"
+                :disabled="reviewLoading"
+                class="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-md px-3 py-1.5 transition-colors"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Approve &amp; Save
+            </button>
+            <button
+                @click="submitReview('reject')"
+                :disabled="reviewLoading"
+                class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 rounded-md px-3 py-1.5 transition-colors"
+            >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                Reject
+            </button>
+        </div>
+    </div>
+
     <!-- Completed stream state -->
-    <div x-show="streamed && !streaming" x-cloak>
+    <div x-show="streamed && !streaming && !pendingReview" x-cloak class="mt-6 pt-4 border-t border-indigo-100">
         <div class="text-sm text-gray-700 leading-relaxed prose prose-sm max-w-none" x-ref="finalOutput"></div>
         <div class="flex items-center justify-between mt-2">
             <p class="text-xs text-gray-400">Generated just now</p>
@@ -88,15 +114,24 @@
             return {
                 streaming: false,
                 streamed: false,
+                pendingReview: false,
+                reviewLoading: false,
+                threadId: null,
                 error: null,
                 rawText: '',
                 statusText: 'Connecting to agent...',
                 generate() {
                     this.streaming = true;
                     this.streamed = false;
+                    this.pendingReview = false;
+                    this.threadId = null;
                     this.error = null;
                     this.rawText = '';
                     this.statusText = 'Connecting to agent...';
+                    // Clear any previously rendered content
+                    if (this.$refs.streamOutput) this.$refs.streamOutput.innerHTML = '';
+                    if (this.$refs.reviewOutput) this.$refs.reviewOutput.innerHTML = '';
+                    if (this.$refs.finalOutput) this.$refs.finalOutput.innerHTML = '';
 
                     const url = '/api/narrative/stream/{{ country_a }}/{{ country_b }}/{{ period }}';
                     const es = new EventSource(url);
@@ -118,6 +153,19 @@
                         if (this.$refs.streamOutput) {
                             this.$refs.streamOutput.innerHTML = marked.parse(this.rawText);
                         }
+                    });
+
+                    es.addEventListener('review', (e) => {
+                        es.close();
+                        const data = JSON.parse(e.data);
+                        this.threadId = data.thread_id;
+                        this.streaming = false;
+                        this.pendingReview = true;
+                        this.$nextTick(() => {
+                            if (this.$refs.reviewOutput) {
+                                this.$refs.reviewOutput.innerHTML = marked.parse(this.rawText);
+                            }
+                        });
                     });
 
                     es.addEventListener('done', (e) => {
@@ -159,6 +207,34 @@
                             }
                         }
                     };
+                },
+                async submitReview(decision) {
+                    this.reviewLoading = true;
+                    try {
+                        const resp = await fetch(`/api/narrative/review/${this.threadId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ decision }),
+                        });
+                        if (!resp.ok) throw new Error('Review request failed');
+                        this.pendingReview = false;
+                        if (decision === 'approve') {
+                            this.streamed = true;
+                            this.$nextTick(() => {
+                                if (this.$refs.finalOutput) {
+                                    this.$refs.finalOutput.innerHTML = marked.parse(this.rawText);
+                                }
+                            });
+                        } else {
+                            this.rawText = '';
+                            this.streamed = false;
+                        }
+                    } catch (err) {
+                        this.error = 'Failed to submit review — ' + err.message;
+                        this.pendingReview = false;
+                    } finally {
+                        this.reviewLoading = false;
+                    }
                 }
             };
         }

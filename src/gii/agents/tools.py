@@ -319,3 +319,24 @@ def build_geopolitics_search():
         return _tavily_search(query, domains)
 
     return search_geopolitics_news
+
+
+@tool
+def save_narrative(country_a: str, country_b: str, period: str, narrative: str) -> str:
+    """Save a completed narrative to the database for a country pair and period.
+    
+    Args:
+        country_a: ISO3 code of first country
+        country_b: ISO3 code of second country
+        period: Time period, e.g. "2024"
+        narrative: The complete narrative text to save
+    
+    Returns:
+        Confirmation message when saved
+    """
+    session = get_session()
+    repo = Repository(session)
+    repo.save_narrative(country_a, country_b, period, narrative)
+    repo.commit()
+    session.close()
+    return f"Narrative saved for {country_a}-{country_b} ({period})"

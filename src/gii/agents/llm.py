@@ -75,7 +75,7 @@ def _build_bedrock(**kwargs) -> BaseChatModel:
     defaults = {
         "model_id": settings.bedrock_model_id,
         "region_name": settings.bedrock_region,
-        "temperature": 0.6,
+        "temperature": 0.3,
         "max_tokens": 32768,
         "disable_streaming": not streaming,
     }
