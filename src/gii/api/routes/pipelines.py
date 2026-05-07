@@ -27,7 +27,12 @@ async def trigger_pipeline(req: PipelineTriggerRequest):
         year = int(period[:4])
     except (ValueError, IndexError):
         return PipelineStatusResponse(status="error", message=f"Invalid period: {period!r} — expected e.g. '2025' or '2025-Q1'")
-    params = PipelineParams(year=year, period=period)
+    s = req.steps
+    params = PipelineParams(
+        year=year, period=period, narrative_top_n=req.narrative_top_n,
+        step_trade=s.trade, step_travel=s.travel, step_geopolitics=s.geopolitics,
+        step_quality=s.quality, step_index=s.index, step_narratives=s.narratives,
+    )
     workflow_id = f"main-refresh-{period}-{uuid.uuid4().hex[:8]}"
 
     try:
@@ -62,7 +67,12 @@ async def trigger_multi_period_pipeline(req: MultiPeriodTriggerRequest):
     except Exception as e:
         return PipelineStatusResponse(status="error", message=f"Cannot connect to Temporal: {e}")
 
-    params = MultiPeriodPipelineParams(start_year=req.start_year, end_year=req.end_year)
+    s = req.steps
+    params = MultiPeriodPipelineParams(
+        start_year=req.start_year, end_year=req.end_year, narrative_top_n=req.narrative_top_n,
+        step_trade=s.trade, step_travel=s.travel, step_geopolitics=s.geopolitics,
+        step_quality=s.quality, step_index=s.index, step_narratives=s.narratives,
+    )
     workflow_id = f"multi-refresh-{req.start_year}-{req.end_year}-{uuid.uuid4().hex[:8]}"
 
     try:

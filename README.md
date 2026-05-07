@@ -156,9 +156,9 @@ MainRefreshWorkflow (top-level orchestrator)
 
 The three data-source child workflows run **in parallel**. Once all three complete, the pipeline runs quality checks, computes the composite index, and generates AI narratives — sequentially.
 
-### Narrative Generation Agent
+### Narrative Generation
 
-The narrative agent uses a **supervisor + subagent** architecture via LangChain Deep Agents:
+The pipeline generates AI narratives using a **supervisor + subagent** architecture via LangChain Deep Agents:
 
 ```
 Supervisor (synthesis + orchestration)
@@ -169,9 +169,59 @@ Supervisor (synthesis + orchestration)
 
 The supervisor dispatches all three domain analysts via the `task` tool. Each subagent queries its pillar's database table and optionally searches for relevant news via Tavily (with domain whitelists). The supervisor then synthesizes the three reports into a single cohesive narrative.
 
+#### Configuring narrative count
+
+The `narrative_top_n` parameter controls how many country-pair narratives the pipeline generates in batch mode. It defaults to **10** (the top 10 pairs by composite score). You can set it via any trigger method:
+
+**API:**
+
+```bash
+curl -X POST http://localhost:8000/api/pipelines/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"period": "2024", "narrative_top_n": 25}'
+```
+
+**Multi-period API** (narratives are generated only for the final year):
+
+```bash
+curl -X POST http://localhost:8000/api/pipelines/trigger-multi \
+  -H "Content-Type: application/json" \
+  -d '{"start_year": 2022, "end_year": 2024, "narrative_top_n": 15}'
+```
+
+**Temporal CLI:**
+
+```bash
+temporal workflow start \
+  --task-queue gii-pipeline \
+  --type MainRefreshWorkflow \
+  --input '{"year": 2024, "period": "2024", "narrative_top_n": 25}'
+```
+
+#### Enabling / disabling narratives
+
+Narrative generation can be toggled independently of the other pipeline steps. To skip narratives entirely (useful for faster data-only refreshes), set `step_narratives` to `false`:
+
+```bash
+# API — disable narratives via the steps object
+curl -X POST http://localhost:8000/api/pipelines/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"period": "2024", "steps": {"narratives": false}}'
+
+# Temporal CLI — disable via the step flag
+temporal workflow start \
+  --task-queue gii-pipeline \
+  --type MainRefreshWorkflow \
+  --input '{"year": 2024, "period": "2024", "step_narratives": false}'
+```
+
+Any combination of steps can be toggled: `trade`, `travel`, `geopolitics`, `quality`, `index`, and `narratives`.
+
+#### Generation modes
+
 Narratives are generated in two contexts:
-- **Batch** (Temporal pipeline): top 10 country pairs by composite score
-- **On-demand** (dashboard UI): single country pair via SSE streaming
+- **Batch** (Temporal pipeline): generates narratives for the top N country pairs by composite score, controlled by `narrative_top_n`
+- **On-demand** (dashboard UI): generates a single country-pair narrative via SSE streaming, with human-in-the-loop approval before the narrative is saved
 
 ### Running Workflows
 

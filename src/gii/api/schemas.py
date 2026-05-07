@@ -34,13 +34,26 @@ class RankingEntry(BaseModel):
     pair_count: int
 
 
+class PipelineSteps(BaseModel):
+    trade: bool = True
+    travel: bool = True
+    geopolitics: bool = True
+    quality: bool = True
+    index: bool = True
+    narratives: bool = True
+
+
 class PipelineTriggerRequest(BaseModel):
     period: str  # e.g. "2025" or "2025-Q1"
+    narrative_top_n: int = 10
+    steps: PipelineSteps = PipelineSteps()
 
 
 class MultiPeriodTriggerRequest(BaseModel):
     start_year: int
     end_year: int
+    narrative_top_n: int = 10
+    steps: PipelineSteps = PipelineSteps()
 
 
 class PipelineStatusResponse(BaseModel):

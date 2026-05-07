@@ -1,0 +1,44 @@
+{% for s in pairs %}
+<a href="/pair/{{ s.country_a }}/{{ s.country_b }}" class="flex items-center justify-between px-6 py-3 hover:bg-gray-50">
+    <div>
+        <span class="font-mono text-sm">{{ s.country_a }}</span>
+        <span class="text-gray-400 mx-1">-</span>
+        <span class="font-mono text-sm">{{ s.country_b }}</span>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="text-sm text-gray-500">{{ s.coverage }}</span>
+        <span class="text-lg font-bold {{ 'text-indigo-600' if direction == 'top' else 'text-gray-500' }}">{{ "%.1f"|format(s.composite_score) }}</span>
+    </div>
+</a>
+{% else %}
+<div class="px-6 py-8 text-center text-gray-400">No data for this page.</div>
+{% endfor %}
+
+<!-- Pagination controls -->
+{% if total_pages > 1 %}
+<div class="flex items-center justify-between px-6 py-3 border-t bg-gray-50">
+    <button
+        {% if page > 1 %}
+        hx-get="/partials/{{ direction }}-pairs?period={{ period }}&page={{ page - 1 }}"
+        hx-target="#{{ direction }}-pairs-container"
+        hx-swap="innerHTML"
+        class="text-sm text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
+        {% else %}
+        disabled
+        class="text-sm text-gray-300 font-medium cursor-not-allowed"
+        {% endif %}
+    >&larr; Prev</button>
+    <span class="text-sm text-gray-500">{{ page }} / {{ total_pages }}</span>
+    <button
+        {% if page < total_pages %}
+        hx-get="/partials/{{ direction }}-pairs?period={{ period }}&page={{ page + 1 }}"
+        hx-target="#{{ direction }}-pairs-container"
+        hx-swap="innerHTML"
+        class="text-sm text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer"
+        {% else %}
+        disabled
+        class="text-sm text-gray-300 font-medium cursor-not-allowed"
+        {% endif %}
+    >Next &rarr;</button>
+</div>
+{% endif %}

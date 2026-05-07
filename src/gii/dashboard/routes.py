@@ -29,18 +29,13 @@ def dashboard_home(request: Request, period: str | None = Query(None), session: 
     repo = get_repo(session)
     if period is None:
         period = repo.get_latest_period() or str(date.today().year)
-    snapshots = repo.get_snapshots(period)
-    countries = repo.list_countries()
-
-    top_10 = snapshots[:10]
-    bottom_10 = snapshots[-10:] if len(snapshots) > 10 else []
+    snapshot_count = len(repo.get_snapshots(period))
+    country_count = len(repo.list_countries())
 
     return templates.TemplateResponse(request, "index.html", {
         "period": period,
-        "total_pairs": len(snapshots),
-        "total_countries": len(countries),
-        "top_pairs": top_10,
-        "bottom_pairs": bottom_10,
+        "total_pairs": snapshot_count,
+        "total_countries": country_count,
     })
 
 
@@ -88,12 +83,63 @@ def pair_detail(request: Request, country_a: str, country_b: str, session: Sessi
     })
 
 
+@router.get("/country/{iso3}", response_class=HTMLResponse)
+def country_detail(request: Request, iso3: str, period: str | None = Query(None), session: Session = Depends(get_db)):
+    repo = get_repo(session)
+    iso3 = iso3.upper()
+    if period is None:
+        period = repo.get_latest_period() or str(date.today().year)
+    snapshots = repo.get_country_snapshots(iso3, period)
+    countries = {c.iso3: c.name for c in repo.list_countries()}
+    country_name = countries.get(iso3, iso3)
+
+    return templates.TemplateResponse(request, "country_detail.html", {
+        "iso3": iso3,
+        "country_name": country_name,
+        "period": period,
+        "snapshots": snapshots,
+        "country_names": countries,
+    })
+
+
 @router.get("/admin/pipelines", response_class=HTMLResponse)
 def pipeline_admin(request: Request):
     return templates.TemplateResponse(request, "admin.html")
 
 
 # --- HTMX Partials ---
+
+PAGE_SIZE = 10
+
+
+@router.get("/partials/top-pairs", response_class=HTMLResponse)
+def top_pairs_partial(request: Request, period: str, page: int = Query(1, ge=1), session: Session = Depends(get_db)):
+    repo = get_repo(session)
+    snapshots = repo.get_snapshots(period)
+    total_pages = max(1, -(-len(snapshots) // PAGE_SIZE))  # ceil division
+    page = min(page, total_pages)
+    start = (page - 1) * PAGE_SIZE
+    pairs = snapshots[start:start + PAGE_SIZE]
+    return templates.TemplateResponse(request, "partials/pair_list.html", {
+        "pairs": pairs, "page": page, "total_pages": total_pages,
+        "period": period, "direction": "top",
+    })
+
+
+@router.get("/partials/bottom-pairs", response_class=HTMLResponse)
+def bottom_pairs_partial(request: Request, period: str, page: int = Query(1, ge=1), session: Session = Depends(get_db)):
+    repo = get_repo(session)
+    snapshots = repo.get_snapshots(period)
+    # Reverse so page 1 = lowest scores
+    snapshots = list(reversed(snapshots))
+    total_pages = max(1, -(-len(snapshots) // PAGE_SIZE))
+    page = min(page, total_pages)
+    start = (page - 1) * PAGE_SIZE
+    pairs = snapshots[start:start + PAGE_SIZE]
+    return templates.TemplateResponse(request, "partials/pair_list.html", {
+        "pairs": pairs, "page": page, "total_pages": total_pages,
+        "period": period, "direction": "bottom",
+    })
 
 
 @router.get("/partials/score-card/{country_a}/{country_b}/{period}", response_class=HTMLResponse)
@@ -153,7 +199,7 @@ async def stream_narrative(country_a: str, country_b: str, period: str):
         full_text = ""
         task_depth = 0        # >0 means we're inside a subagent task call
         task_count = 0        # how many task tool calls have completed
-        supervisor_has_tools = False  # True once supervisor has made tool calls
+        supervisor_has_tools = False  # True once supervisor has made tool calls (task/save_narrative)
 
         try:
             yield {"event": "status", "data": json.dumps({"text": "Dispatching domain analysts..."})}

@@ -64,41 +64,47 @@ class MainRefreshWorkflow:
     async def run(self, params: PipelineParams) -> dict:
         results = {}
 
-        # Phase 1: Ingest all data sources (can run in parallel via child workflows)
-        trade_handle = await workflow.start_child_workflow(
-            TradeDataWorkflow.run, params, id=f"trade-{params.period}",
-        )
-        travel_handle = await workflow.start_child_workflow(
-            TravelDataWorkflow.run, params, id=f"travel-{params.period}",
-        )
-        geo_handle = await workflow.start_child_workflow(
-            GeopoliticsDataWorkflow.run, params, id=f"geo-{params.period}",
-        )
+        # Phase 1: Ingest data sources in parallel (only enabled ones)
+        handles = {}
+        if params.step_trade:
+            handles["trade"] = await workflow.start_child_workflow(
+                TradeDataWorkflow.run, params, id=f"trade-{params.period}",
+            )
+        if params.step_travel:
+            handles["travel"] = await workflow.start_child_workflow(
+                TravelDataWorkflow.run, params, id=f"travel-{params.period}",
+            )
+        if params.step_geopolitics:
+            handles["geopolitics"] = await workflow.start_child_workflow(
+                GeopoliticsDataWorkflow.run, params, id=f"geo-{params.period}",
+            )
 
-        results["trade"] = await trade_handle
-        results["travel"] = await travel_handle
-        results["geopolitics"] = await geo_handle
+        for key, handle in handles.items():
+            results[key] = await handle
 
         # Phase 2: Quality check
-        results["quality"] = await workflow.execute_activity(
-            run_quality_check,
-            params,
-            start_to_close_timeout=timedelta(minutes=15),
-        )
+        if params.step_quality:
+            results["quality"] = await workflow.execute_activity(
+                run_quality_check,
+                params,
+                start_to_close_timeout=timedelta(minutes=15),
+            )
 
         # Phase 3: Compute composite index
-        results["index_count"] = await workflow.execute_activity(
-            compute_and_store_index,
-            params,
-            start_to_close_timeout=timedelta(minutes=10),
-        )
+        if params.step_index:
+            results["index_count"] = await workflow.execute_activity(
+                compute_and_store_index,
+                params,
+                start_to_close_timeout=timedelta(minutes=10),
+            )
 
         # Phase 4: Generate narratives for top movers
-        results["narratives"] = await workflow.execute_activity(
-            generate_narratives,
-            params,
-            start_to_close_timeout=timedelta(minutes=60),
-        )
+        if params.step_narratives:
+            results["narratives"] = await workflow.execute_activity(
+                generate_narratives,
+                params,
+                start_to_close_timeout=timedelta(minutes=60),
+            )
 
         return results
 
@@ -113,45 +119,62 @@ class MultiPeriodRefreshWorkflow:
         all_results = {}
 
         for year in range(params.start_year, params.end_year + 1):
-            year_params = PipelineParams(year=year, period=str(year))
+            year_params = PipelineParams(
+                year=year, period=str(year),
+                step_trade=params.step_trade, step_travel=params.step_travel,
+                step_geopolitics=params.step_geopolitics, step_quality=params.step_quality,
+                step_index=params.step_index,
+            )
             year_key = str(year)
             all_results[year_key] = {}
 
-            # Phase 1: Ingest all data sources in parallel
-            trade_handle = await workflow.start_child_workflow(
-                TradeDataWorkflow.run, year_params, id=f"trade-{year}",
-            )
-            travel_handle = await workflow.start_child_workflow(
-                TravelDataWorkflow.run, year_params, id=f"travel-{year}",
-            )
-            geo_handle = await workflow.start_child_workflow(
-                GeopoliticsDataWorkflow.run, year_params, id=f"geo-{year}",
-            )
+            # Phase 1: Ingest data sources in parallel (only enabled ones)
+            handles = {}
+            if params.step_trade:
+                handles["trade"] = await workflow.start_child_workflow(
+                    TradeDataWorkflow.run, year_params, id=f"trade-{year}",
+                )
+            if params.step_travel:
+                handles["travel"] = await workflow.start_child_workflow(
+                    TravelDataWorkflow.run, year_params, id=f"travel-{year}",
+                )
+            if params.step_geopolitics:
+                handles["geopolitics"] = await workflow.start_child_workflow(
+                    GeopoliticsDataWorkflow.run, year_params, id=f"geo-{year}",
+                )
 
-            all_results[year_key]["trade"] = await trade_handle
-            all_results[year_key]["travel"] = await travel_handle
-            all_results[year_key]["geopolitics"] = await geo_handle
+            for key, handle in handles.items():
+                all_results[year_key][key] = await handle
 
             # Phase 2: Quality check
-            all_results[year_key]["quality"] = await workflow.execute_activity(
-                run_quality_check,
-                year_params,
-                start_to_close_timeout=timedelta(minutes=15),
-            )
+            if params.step_quality:
+                all_results[year_key]["quality"] = await workflow.execute_activity(
+                    run_quality_check,
+                    year_params,
+                    start_to_close_timeout=timedelta(minutes=15),
+                )
 
             # Phase 3: Compute composite index
-            all_results[year_key]["index_count"] = await workflow.execute_activity(
-                compute_and_store_index,
-                year_params,
-                start_to_close_timeout=timedelta(minutes=10),
-            )
+            if params.step_index:
+                all_results[year_key]["index_count"] = await workflow.execute_activity(
+                    compute_and_store_index,
+                    year_params,
+                    start_to_close_timeout=timedelta(minutes=10),
+                )
 
         # Phase 4: Generate narratives only for the final year
-        final_params = PipelineParams(year=params.end_year, period=str(params.end_year))
-        all_results["narratives"] = await workflow.execute_activity(
-            generate_narratives,
-            final_params,
-            start_to_close_timeout=timedelta(minutes=60),
-        )
+        if params.step_narratives:
+            final_params = PipelineParams(
+                year=params.end_year, period=str(params.end_year),
+                narrative_top_n=params.narrative_top_n,
+                step_trade=params.step_trade, step_travel=params.step_travel,
+                step_geopolitics=params.step_geopolitics, step_quality=params.step_quality,
+                step_index=params.step_index, step_narratives=params.step_narratives,
+            )
+            all_results["narratives"] = await workflow.execute_activity(
+                generate_narratives,
+                final_params,
+                start_to_close_timeout=timedelta(minutes=60),
+            )
 
         return all_results

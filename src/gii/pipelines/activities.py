@@ -17,12 +17,26 @@ logger = logging.getLogger(__name__)
 class PipelineParams:
     year: int
     period: str  # e.g. "2025" or "2025-Q1"
+    narrative_top_n: int = 10
+    step_trade: bool = True
+    step_travel: bool = True
+    step_geopolitics: bool = True
+    step_quality: bool = True
+    step_index: bool = True
+    step_narratives: bool = True
 
 
 @dataclass
 class MultiPeriodPipelineParams:
     start_year: int
     end_year: int  # inclusive, max 5 year span
+    narrative_top_n: int = 10
+    step_trade: bool = True
+    step_travel: bool = True
+    step_geopolitics: bool = True
+    step_quality: bool = True
+    step_index: bool = True
+    step_narratives: bool = True
 
 
 # --- Trade Activities ---
@@ -188,7 +202,7 @@ async def generate_narratives(params: PipelineParams) -> int:
         from gii.agents.narrative import generate_period_narratives
         info = activity.info()
         thread_id = info.workflow_id
-        count = await generate_period_narratives(params.period, thread_id=thread_id)
+        count = await generate_period_narratives(params.period, top_n=params.narrative_top_n, thread_id=thread_id)
         return count
     except Exception as e:
         logger.error(f"Narrative generation failed: {e}")

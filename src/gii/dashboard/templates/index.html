@@ -24,46 +24,29 @@
     </div>
 </div>
 
-<!-- Top 10 Pairs -->
+<!-- Top / Bottom Pairs -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b">
-            <h2 class="text-lg font-semibold">Top 10 Most Interconnected</h2>
+            <h2 class="text-lg font-semibold">Most Interconnected</h2>
         </div>
-        <div class="divide-y">
-            {% for s in top_pairs %}
-            <a href="/pair/{{ s.country_a }}/{{ s.country_b }}" class="flex items-center justify-between px-6 py-3 hover:bg-gray-50">
-                <div>
-                    <span class="font-mono text-sm">{{ s.country_a }}</span>
-                    <span class="text-gray-400 mx-1">-</span>
-                    <span class="font-mono text-sm">{{ s.country_b }}</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="text-sm text-gray-500">{{ s.coverage }}</span>
-                    <span class="text-lg font-bold text-indigo-600">{{ "%.1f"|format(s.composite_score) }}</span>
-                </div>
-            </a>
-            {% else %}
-            <div class="px-6 py-8 text-center text-gray-400">No data yet. Trigger a pipeline run to get started.</div>
-            {% endfor %}
+        <div id="top-pairs-container"
+             hx-get="/partials/top-pairs?period={{ period }}&page=1"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="px-6 py-8 text-center text-gray-400">Loading...</div>
         </div>
     </div>
 
     <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b">
-            <h2 class="text-lg font-semibold">Bottom 10 Least Interconnected</h2>
+            <h2 class="text-lg font-semibold">Least Interconnected</h2>
         </div>
-        <div class="divide-y">
-            {% for s in bottom_pairs %}
-            <a href="/pair/{{ s.country_a }}/{{ s.country_b }}" class="flex items-center justify-between px-6 py-3 hover:bg-gray-50">
-                <div>
-                    <span class="font-mono text-sm">{{ s.country_a }}</span>
-                    <span class="text-gray-400 mx-1">-</span>
-                    <span class="font-mono text-sm">{{ s.country_b }}</span>
-                </div>
-                <span class="text-lg font-bold text-gray-500">{{ "%.1f"|format(s.composite_score) }}</span>
-            </a>
-            {% endfor %}
+        <div id="bottom-pairs-container"
+             hx-get="/partials/bottom-pairs?period={{ period }}&page=1"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="px-6 py-8 text-center text-gray-400">Loading...</div>
         </div>
     </div>
 </div>

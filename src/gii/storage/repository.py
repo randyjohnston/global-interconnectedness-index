@@ -120,6 +120,18 @@ class Repository:
             .order_by(IndexSnapshotRow.composite_score.desc())
         ))
 
+    def get_country_snapshots(self, country: str, period: str) -> list[IndexSnapshotRow]:
+        """Return all snapshots involving a country for a period, sorted by composite_score desc."""
+        return list(self.session.scalars(
+            select(IndexSnapshotRow)
+            .where(IndexSnapshotRow.period == period)
+            .where(
+                (IndexSnapshotRow.country_a == country)
+                | (IndexSnapshotRow.country_b == country)
+            )
+            .order_by(IndexSnapshotRow.composite_score.desc())
+        ))
+
     def get_pair_history(self, country_a: str, country_b: str) -> list[IndexSnapshotRow]:
         pair = CountryPair.create(country_a, country_b)
         return list(self.session.scalars(

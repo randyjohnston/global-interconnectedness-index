@@ -22,6 +22,8 @@
     <div class="bg-white rounded-lg shadow p-6" x-data="{
         period: String(new Date().getFullYear()),
         yearCount: 1,
+        narrativeTopN: 10,
+        steps: { trade: true, travel: true, geopolitics: true, quality: true, index: true, narratives: true },
         loading: false,
         result: '',
         get startYear() {
@@ -43,10 +45,10 @@
             let url, body;
             if (this.isMulti) {
                 url = '/api/pipelines/trigger-multi';
-                body = { start_year: this.startYear, end_year: parseInt(this.period) };
+                body = { start_year: this.startYear, end_year: parseInt(this.period), narrative_top_n: this.narrativeTopN, steps: this.steps };
             } else {
                 url = '/api/pipelines/trigger';
-                body = { period: this.period };
+                body = { period: this.period, narrative_top_n: this.narrativeTopN, steps: this.steps };
             }
             fetch(url, {
                 method: 'POST',
@@ -70,6 +72,23 @@
                 <div class="flex justify-between text-xs text-gray-400 mt-1">
                     <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
                 </div>
+            </div>
+
+            <div>
+                <label class="block text-sm text-gray-600 mb-2">Pipeline steps</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <template x-for="[key, label] in [['trade','Pull trade data'],['travel','Pull travel data'],['geopolitics','Pull geopolitics data'],['quality','QA check'],['index','Composite score'],['narratives','Narratives']]" :key="key">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" x-model="steps[key]" class="rounded accent-indigo-600">
+                            <span x-text="label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="steps.narratives">
+                <label class="block text-sm text-gray-600 mb-1">Narratives to generate</label>
+                <input type="number" x-model.number="narrativeTopN" min="1" max="38025" class="border rounded px-3 py-2 w-full" placeholder="e.g. 10">
             </div>
 
             <!-- Year pills (multi-year only) -->
